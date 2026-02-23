@@ -2,25 +2,34 @@ import csv
 import os
 
 # --- Issue #1.1: CSV Reader Module ---
-def get_source_row(file_path, index):
+def load_csv_file(file_path):
     """
-    קוראת את ה-Source CSV ומחזירה שורה ספציפית לפי אינדקס.
-    מחזירה מילון (Dictionary) הכולל URL, Text (אופציונלי), ו-Images URL.
+    Loads only the first two columns into a 2D array.
+    Raises an exception if any row has more than 2 columns.
     """
-    try:
-        if not os.path.exists(file_path):
-            return {"error": f"Source file not found at: {file_path}"}
+    data_array = []
+    
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found at: {file_path}")
+
+    with open(file_path, mode='r', encoding='utf-8', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        
+        for line_num, row in enumerate(reader, start=1):
+            # Strict check: If row has more than 2 columns, raise exception
+            if len(row) > 2:
+                raise ValueError(f"Invalid format: Found {len(row)} columns at line {line_num}. Only 2 columns allowed.")
             
-        with open(file_path, mode='r', encoding='utf-8', newline='') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for i, row in enumerate(reader):
-                if i == index:
-                    # אנחנו מוסיפים את האינדקס לתוך האובייקט כדי שחברי הצוות האחרים יוכלו להשתמש בו לנעילות/זיהוי
-                    row['original_index'] = i
-                    return row
-        return None  # אינדקס לא נמצא
-    except Exception as e:
-        return {"error": str(e)}
+            # If a row is completely empty, we skip it; if it has 1 column, we raise an error
+            if len(row) == 0:
+                continue
+            if len(row) < 2:
+                raise ValueError(f"Invalid format: Line {line_num} contains only 1 column. Expected 2.")
+            
+            # Append the first two columns
+            data_array.append([row[0], row[1]])
+            
+    return data_array
 
 # --- Issue #1.2: Master Labels Writer ---
 def append_to_master(master_file_path, label_data, fieldnames):
