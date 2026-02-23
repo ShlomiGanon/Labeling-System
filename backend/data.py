@@ -4,32 +4,37 @@ class Data:
         self.text = text
         self.image_url = image_url
 
+    def get_text(self):
+        return self.text
+    
+    def get_image_url(self):
+        return self.image_url
+    
     def is_have_text(self):
         return len(str(self.text)) > 0
 
     def is_have_image_url(self):
         return len(str(self.image_url)) > 0
 
-#this function will split the data with text_column and image_column
-def split_data(data_array, text_column=0, image_column=1):
-    result = []
-    for i in range(len(data_array)):
-        new_item = Data(data_array[i][text_column], data_array[i][image_column])
-        result.append(new_item)
-    return result
-
+    def __str__(self):
+        return f"Text: {self.text}, Image URL: {self.image_url}"
 
 #this function will split the data smart without text_column and image_column
-def split_data_smart(data_array):
-    result = []
-    for i in range(len(data_array)):
-        if "www" in str(data_array[i][0]):
-            image = data_array[i][0]
-            text = data_array[i][1]
-        else:
-            text = data_array[i][0]
-            image = data_array[i][1]
+def get_data_from_source(source):
+    pure_data = source.get_next_data()
+    if "www" in str(pure_data[0]) or "http" in str(pure_data[0]):
+        image = pure_data[0]
+        text = pure_data[1]
+    else:
+        text = pure_data[0]
+        image = pure_data[1]
 
-        new_item = Data(text, image)
-        result.append(new_item)
-    return result
+    return Data(text, image)
+
+
+#this function will split the data with text_column and image_column
+def get_data_from_source(source,text_column:int, image_column:int):
+    pure_data = source.get_next_data()
+    text = pure_data[text_column]
+    image = pure_data[image_column]
+    return Data(text, image)
