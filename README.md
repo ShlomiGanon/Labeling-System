@@ -10,5 +10,5 @@ A lightweight, mobile-responsive web app for high-speed multi-modal data annotat
 
 ## 🛠 Workflows
 1. **Workflow A (Multi-modal):** Image-Text relationship (Independent, Context-Dependent, Noise).
-2. **Workflow B (Entity-Centric):** Entity ID → Topic Assignment → Sentiment/Emotion rating.
-3. **Workflow C (Captioning):** Free-text entry for "Golden Captions".
+2. **Workflow B (Entity-Centric):** Entity ID → Topic Assignment → Sentiment/Emotion rating.   
+3. **Workflow C (Captioning):** Free-text entry for "Golden Captions".     
