@@ -3,8 +3,11 @@ import data
 from collections import deque
 
 
-avilable_assignments = deque()
-active_assignments = {} #{ USER_NAME : [DATA] }
+
+
+def init_server():
+    avilable_assignments = deque()
+    active_assignments = {} #{ USER_NAME : [DATA] }
 
 def load_data_source(data_source):
     while(not data_source.is_empty()):
