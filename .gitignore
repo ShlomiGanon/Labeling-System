@@ -1,2 +1,18 @@
 # התעלמות מכל מה שנמצא בתוך תיקיית tests
 tests/
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Data and CSVs (We don't want to commit raw data)
+# backend/data/
+# backend/sample.csv
+
+# Frontend (Node)
+frontend/node_modules/
+frontend/dist/
+.DS_Store

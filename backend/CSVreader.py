@@ -12,7 +12,7 @@ def load_csv_file(file_path):
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found at: {file_path}")
 
-    with open(file_path, mode='r', encoding='utf-8', newline='') as csvfile:
+    with open(file_path, mode='r', encoding='utf-8', errors='ignore', newline='') as csvfile:
         reader = csv.reader(csvfile)
         
         for line_num, row in enumerate(reader, start=1):
@@ -60,19 +60,19 @@ def load_projects_config():
     """
     # בעתיד אפשר להעביר את זה לקובץ JSON חיצוני, כרגע זה מוגדר כאן (Data Architect's responsibility)
     projects = {
-        "Project_1": {
+        "Workflow_A": {
             "name": "Image & Text Validation",
-            "source_file": "data/source_1.csv",
+            "source_file": "sample.csv",
             "master_file": "data/master_labels_1.csv",
-            "source_fields": ["URL", "Text", "Images", "original_index"],
-            "label_fields": ["is_appropriate", "language", "labeler_comments"]
+            "source_fields": ["image_uri", "text", "images", "original_index"],
+            "label_fields": ["relationship_type"]
         },
-        "Project_2": {
+        "Workflow_B": {
             "name": "Product Categorization",
             "source_file": "data/source_2.csv",
             "master_file": "data/master_labels_2.csv",
             "source_fields": ["URL", "Text", "Images", "original_index"],
-            "label_fields": ["category", "brand", "is_duplicate"]
+            "label_fields": ["entity", "topic", "sentiment"]
         }
     }
     
