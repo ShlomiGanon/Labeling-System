@@ -19,6 +19,7 @@ class WorkflowType(Enum):
     IMAGE_TEXT_RELATIONSHIP = "A"
     ENTITY_SENTIMENT = "B"
     GOLDEN_CAPTION = "C"
+    CUSTOM = "CUSTOM"
 
 class EntityType(Enum):
     """Categories for named entities identified in text."""
@@ -123,8 +124,8 @@ WORKFLOW_B_SCHEMA = WorkflowSchema(
                 FieldSchema(
                     id="entity_name",
                     label="שם הישות",
-                    component=UIComponent.INPUT_TEXT,
-                    placeholder="למשל: בנק ישראל"
+                    component=UIComponent.SELECT,
+                    options=["ישות 1", "ישות 2", "ישות 3"]
                 ),
                 FieldSchema(
                     id="entity_type",
@@ -351,3 +352,39 @@ class CaptionLabel:
             "workflow": WorkflowType.GOLDEN_CAPTION.value,
             "caption": self.caption,
         }
+
+
+@dataclass
+class CustomLabel:
+    """
+    Result of a user-defined Custom Workflow.
+    Stores any arbitrary set of field values as submitted by the labeler.
+    This makes the system fully modular – no code changes needed to add new workflows.
+    """
+    row_id: str
+    labeler_name: str
+    fields: dict  # e.g. {"sentiment": "Good", "entity": "ישות 1"}
+
+    def __post_init__(self):
+        if not self.row_id.strip():
+            raise ValueError("Row ID cannot be empty.")
+        if not self.fields:
+            raise ValueError("Custom label must have at least one field value.")
+
+    def to_dict(self) -> dict:
+        """
+        Flattens the label into a dict for CSV export.
+        Merges metadata with all user-defined field values.
+
+        Returns:
+            dict: A flat dictionary with row_id, labeler_name, workflow, and all custom fields.
+        """
+        base = {
+            "row_id": self.row_id,
+            "labeler_name": self.labeler_name,
+            "workflow": WorkflowType.CUSTOM.value,
+        }
+        # Merge all user-submitted fields directly into the row
+        base.update(self.fields)
+        return base
+

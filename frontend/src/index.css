@@ -12,31 +12,39 @@
 
 /* ── CSS custom properties (design tokens) ──────────────────────────── */
 :root {
-  --bg-deep:        #0d1117;
-  --bg-mid:         #161b22;
-  --glass-bg:       rgba(255, 255, 255, 0.05);
-  --glass-border:   rgba(255, 255, 255, 0.10);
-  --accent:         #58a6ff;
-  --accent-hover:   #79bcff;
-  --accent-danger:  #f85149;
+  --bg-deep: #0d1117;
+  --bg-mid: #161b22;
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --border: rgba(255, 255, 255, 0.10);
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --accent: #58a6ff;
+  --accent-hover: #79bcff;
+  --accent-danger: #f85149;
   --accent-success: #3fb950;
-  --accent-warn:    #d29922;
-  --text-primary:   #e6edf3;
+  --accent-warn: #d29922;
+  --text-primary: #e6edf3;
   --text-secondary: #8b949e;
-  --radius:         14px;
-  --radius-sm:      8px;
-  --shadow:         0 8px 32px rgba(0, 0, 0, 0.45);
-  --transition:     0.22s ease;
+  --text-muted: #8b949e;
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --transition: 0.22s ease;
 }
 
 /* ── Reset ────────────────────────────────────────────────────────────── */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   min-height: 100%;
   direction: rtl;
   font-family: 'Heebo', 'Arial Hebrew', sans-serif;
@@ -70,17 +78,31 @@ body::before {
 
 /* ── fade-up animation applied to cards / screens ───────────────────── */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0);     }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Glass card ─────────────────────────────────────────────────────── */
@@ -97,12 +119,29 @@ body::before {
   animation: fadeUp 0.4s ease both;
 }
 
-.card-wide { max-width: 720px; }
+.card-wide {
+  max-width: 720px;
+}
 
 /* ── Typography ─────────────────────────────────────────────────────── */
-h1 { font-size: 1.75rem; font-weight: 700; line-height: 1.2; margin-bottom: 8px; }
-h2 { font-size: 1.3rem;  font-weight: 600; margin-bottom: 20px; }
-h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
+h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
 
 .subtitle {
   color: var(--text-secondary);
@@ -112,7 +151,9 @@ h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
 }
 
 /* ── Form fields ────────────────────────────────────────────────────── */
-.field-group { margin-bottom: 20px; }
+.field-group {
+  margin-bottom: 20px;
+}
 
 label {
   display: block;
@@ -150,7 +191,9 @@ textarea {
   min-height: 100px;
 }
 
-select option { background: var(--bg-mid); }
+select option {
+  background: var(--bg-mid);
+}
 
 .field-hint {
   font-size: 0.78rem;
@@ -177,17 +220,52 @@ select option { background: var(--bg-mid); }
   text-decoration: none;
 }
 
-.btn:active { transform: scale(0.97); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:active {
+  transform: scale(0.97);
+}
 
-.btn-primary   { background: var(--accent); color: #0d1117; }
-.btn-primary:hover:not(:disabled)   { background: var(--accent-hover); box-shadow: 0 0 18px rgba(88, 166, 255, 0.35); }
-.btn-secondary { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); border: 1px solid var(--glass-border); }
-.btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
-.btn-danger    { background: var(--accent-danger); color: #fff; }
-.btn-danger:hover:not(:disabled)    { background: #ff6b6b; }
-.btn-success   { background: var(--accent-success); color: #0d1117; }
-.btn-full { width: 100%; }
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #0d1117;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: 0 0 18px rgba(88, 166, 255, 0.35);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.btn-danger {
+  background: var(--accent-danger);
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #ff6b6b;
+}
+
+.btn-success {
+  background: var(--accent-success);
+  color: #0d1117;
+}
+
+.btn-full {
+  width: 100%;
+}
 
 .btn-row {
   display: flex;
@@ -217,7 +295,12 @@ select option { background: var(--bg-mid); }
   transition: all var(--transition);
 }
 
-.choice-btn:hover { border-color: var(--accent); background: rgba(88, 166, 255, 0.10); color: var(--accent); }
+.choice-btn:hover {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.10);
+  color: var(--accent);
+}
+
 .choice-btn.selected {
   border-color: var(--accent);
   background: rgba(88, 166, 255, 0.18);
@@ -234,14 +317,29 @@ select option { background: var(--bg-mid); }
   animation: fadeUp 0.2s ease;
 }
 
-.alert-error   { background: rgba(248, 81, 73, 0.12);  border: 1px solid rgba(248, 81, 73, 0.3);   color: var(--accent-danger); }
-.alert-success { background: rgba(63, 185, 80, 0.12);  border: 1px solid rgba(63, 185, 80, 0.3);   color: var(--accent-success); }
-.alert-info    { background: rgba(88, 166, 255, 0.10); border: 1px solid rgba(88, 166, 255, 0.25); color: var(--accent); }
+.alert-error {
+  background: rgba(248, 81, 73, 0.12);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  color: var(--accent-danger);
+}
+
+.alert-success {
+  background: rgba(63, 185, 80, 0.12);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+  color: var(--accent-success);
+}
+
+.alert-info {
+  background: rgba(88, 166, 255, 0.10);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  color: var(--accent);
+}
 
 /* ── Loading spinner ────────────────────────────────────────────────── */
 .spinner {
   display: inline-block;
-  width: 22px; height: 22px;
+  width: 22px;
+  height: 22px;
   border: 2px solid rgba(255, 255, 255, 0.15);
   border-top-color: var(--accent);
   border-radius: 50%;
@@ -264,7 +362,10 @@ select option { background: var(--bg-mid); }
   color: var(--text-secondary);
 }
 
-.empty-state .big-icon { font-size: 3rem; margin-bottom: 14px; }
+.empty-state .big-icon {
+  font-size: 3rem;
+  margin-bottom: 14px;
+}
 
 /* ── Topbar ─────────────────────────────────────────────────────────── */
 .topbar {
@@ -293,7 +394,9 @@ select option { background: var(--bg-mid); }
   color: var(--text-secondary);
 }
 
-.user-badge strong { color: var(--text-primary); }
+.user-badge strong {
+  color: var(--text-primary);
+}
 
 /* ── Project grid ───────────────────────────────────────────────────── */
 .projects-grid {
@@ -336,8 +439,14 @@ select option { background: var(--bg-mid); }
   transform: translateY(-2px);
 }
 
-.project-card:hover:not(.finished):not(.new-project)::after { opacity: 1; }
-.project-card.finished { opacity: 0.55; cursor: default; }
+.project-card:hover:not(.finished):not(.new-project)::after {
+  opacity: 1;
+}
+
+.project-card.finished {
+  opacity: 0.55;
+  cursor: default;
+}
 
 .project-meta {
   font-size: 0.82rem;
@@ -363,8 +472,14 @@ select option { background: var(--bg-mid); }
   font-weight: 500;
 }
 
-.project-card.new-project:hover { border-color: var(--accent); color: var(--accent); }
-.new-icon { font-size: 2rem; }
+.project-card.new-project:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.new-icon {
+  font-size: 2rem;
+}
 
 /* ── Workflow type badge ─────────────────────────────────────────────── */
 .badge {
@@ -375,10 +490,25 @@ select option { background: var(--bg-mid); }
   font-weight: 600;
 }
 
-.badge-a    { background: rgba(88, 166, 255, 0.15);  color: var(--accent); }
-.badge-b    { background: rgba(210, 153, 34, 0.15);  color: var(--accent-warn); }
-.badge-c    { background: rgba(63, 185, 80, 0.15);   color: var(--accent-success); }
-.badge-done { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); }
+.badge-a {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+}
+
+.badge-b {
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--accent-warn);
+}
+
+.badge-c {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--accent-success);
+}
+
+.badge-done {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
 
 /* ── Task screen ────────────────────────────────────────────────────── */
 .task-header {
@@ -390,7 +520,9 @@ select option { background: var(--bg-mid); }
   gap: 10px;
 }
 
-.task-header h2 { margin: 0; }
+.task-header h2 {
+  margin: 0;
+}
 
 .info-chip {
   display: inline-flex;
@@ -418,7 +550,12 @@ select option { background: var(--bg-mid); }
   justify-content: center;
 }
 
-.task-image-container img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.task-image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 
 .task-text-box {
   background: rgba(255, 255, 255, 0.04);
@@ -440,7 +577,8 @@ select option { background: var(--bg-mid); }
 }
 
 .step-dot {
-  width: 30px; height: 30px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--glass-border);
@@ -454,9 +592,25 @@ select option { background: var(--bg-mid); }
   flex-shrink: 0;
 }
 
-.step-dot.active { background: var(--accent); border-color: var(--accent); color: #0d1117; box-shadow: 0 0 12px rgba(88, 166, 255, 0.4); }
-.step-dot.done   { background: var(--accent-success); border-color: var(--accent-success); color: #0d1117; }
-.step-line       { flex: 1; height: 2px; background: var(--glass-border); border-radius: 1px; }
+.step-dot.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0d1117;
+  box-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
+}
+
+.step-dot.done {
+  background: var(--accent-success);
+  border-color: var(--accent-success);
+  color: #0d1117;
+}
+
+.step-line {
+  flex: 1;
+  height: 2px;
+  background: var(--glass-border);
+  border-radius: 1px;
+}
 
 /* ── Continue dialog overlay ────────────────────────────────────────── */
 .dialog-overlay {
@@ -483,7 +637,9 @@ select option { background: var(--bg-mid); }
   animation: fadeUp 0.3s ease;
 }
 
-.dialog-box h2 { margin-bottom: 10px; }
+.dialog-box h2 {
+  margin-bottom: 10px;
+}
 
 .dialog-box p {
   color: var(--text-secondary);
@@ -492,7 +648,10 @@ select option { background: var(--bg-mid); }
   line-height: 1.6;
 }
 
-.dialog-icon { font-size: 3rem; margin-bottom: 16px; }
+.dialog-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
 
 /* ── Divider ────────────────────────────────────────────────────────── */
 hr.divider {
@@ -503,16 +662,124 @@ hr.divider {
 
 /* ── Responsive ─────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .card { padding: 24px 18px; }
-  h1    { font-size: 1.45rem; }
-  .btn-row { flex-direction: column; }
-  .btn-row .btn { width: 100%; }
+  .card {
+    padding: 24px 18px;
+  }
+
+  h1 {
+    font-size: 1.45rem;
+  }
+
+  .btn-row {
+    flex-direction: column;
+  }
+
+  .btn-row .btn {
+    width: 100%;
+  }
 }
 
 /* ── Stagger animation delay for project cards ──────────────────────── */
-.project-card:nth-child(1) { animation-delay: 0.00s; }
-.project-card:nth-child(2) { animation-delay: 0.05s; }
-.project-card:nth-child(3) { animation-delay: 0.10s; }
-.project-card:nth-child(4) { animation-delay: 0.15s; }
-.project-card:nth-child(5) { animation-delay: 0.20s; }
-.project-card:nth-child(6) { animation-delay: 0.25s; }
+.project-card:nth-child(1) {
+  animation-delay: 0.00s;
+}
+
+.project-card:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.project-card:nth-child(3) {
+  animation-delay: 0.10s;
+}
+
+.project-card:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+.project-card:nth-child(5) {
+  animation-delay: 0.20s;
+}
+
+.project-card:nth-child(6) {
+  animation-delay: 0.25s;
+}
+
+/* ── Workflow builder cards ─────────────────────────────────────────── */
+.workflow-mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 14px;
+  border-radius: var(--radius);
+  border: 2px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.workflow-mode-card:hover {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.workflow-mode-card.selected {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.12);
+  box-shadow: 0 0 16px rgba(88, 166, 255, 0.2);
+}
+
+/* ── Preset option rows ─────────────────────────────────────────────── */
+.preset-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.preset-option:hover {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.preset-option.selected {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.12);
+  box-shadow: 0 0 12px rgba(88, 166, 255, 0.15);
+}
+
+/* ── Project delete button ──────────────────────────────────────────── */
+.project-delete-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition), color var(--transition);
+  line-height: 1;
+  padding: 0;
+}
+
+.project-card:hover .project-delete-btn {
+  opacity: 1;
+}
+
+.project-delete-btn:hover {
+  background: rgba(248, 81, 73, 0.18);
+  color: var(--accent-danger);
+}

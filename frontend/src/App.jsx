@@ -83,6 +83,15 @@ export default function App() {
     }
   };
 
+  const handleDeleteProject = async (projectId, deleteFiles) => {
+    const { ok, data } = await api.deleteProject(projectId, deleteFiles);
+    if (ok) {
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+    } else {
+      setError(data.error || 'שגיאה במחיקת הפרויקט');
+    }
+  };
+
   const handleSelectProject = (project) => {
     setActiveProject(project);
     fetchNextTask(project.id);
@@ -140,6 +149,7 @@ export default function App() {
             projects={projects}
             onSelect={handleSelectProject}
             onCreateNew={() => setScreen('new-project')}
+            onDelete={handleDeleteProject}
             error={error}
           />
         );
@@ -216,10 +226,10 @@ function Topbar({ user, onLogout }) {
     <div className="topbar">
       <div className="logo">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="3" width="8" height="8" rx="2" fill="#58a6ff" opacity="0.9"/>
-          <rect x="13" y="3" width="8" height="8" rx="2" fill="#58a6ff" opacity="0.5"/>
-          <rect x="3" y="13" width="8" height="8" rx="2" fill="#58a6ff" opacity="0.5"/>
-          <rect x="13" y="13" width="8" height="8" rx="2" fill="#3fb950" opacity="0.8"/>
+          <rect x="3" y="3" width="8" height="8" rx="2" fill="#58a6ff" opacity="0.9" />
+          <rect x="13" y="3" width="8" height="8" rx="2" fill="#58a6ff" opacity="0.5" />
+          <rect x="3" y="13" width="8" height="8" rx="2" fill="#58a6ff" opacity="0.5" />
+          <rect x="13" y="13" width="8" height="8" rx="2" fill="#3fb950" opacity="0.8" />
         </svg>
         מערכת התיוג
       </div>
@@ -265,9 +275,69 @@ function LoginScreen({ onLogin, error }) {
   );
 }
 
-function ProjectsScreen({ projects, onSelect, onCreateNew, error }) {
+// ---------------------------------------------------------------------------
+// DeleteConfirmDialog – shows when user clicks the trash icon
+// ---------------------------------------------------------------------------
+
+function DeleteConfirmDialog({ project, onCancel, onConfirm }) {
+  return (
+    <div className="dialog-overlay" onClick={onCancel}>
+      <div className="dialog-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px', textAlign: 'right' }}>
+        <div className="dialog-icon">🗑️</div>
+        <h2>מחיקת פרויקט</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '8px', fontSize: '0.95rem', lineHeight: 1.6 }}>
+          אתה עומד למחוק את הפרויקט <strong>{project.name}</strong>.
+          <br />איזו רמת מחיקה תרצה?
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+          <button
+            className="btn btn-danger"
+            style={{ width: '100%', justifyContent: 'flex-start', gap: '12px', padding: '14px 18px' }}
+            onClick={() => onConfirm(true)}
+          >
+            <span style={{ fontSize: '1.2rem' }}>🗑️</span>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 700 }}>מחק הכל</div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.8, fontWeight: 400 }}>מוחק את הפרויקט + קובץ המקור + קובץ תוצאות (Master)</div>
+            </div>
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%', justifyContent: 'flex-start', gap: '12px', padding: '14px 18px' }}
+            onClick={() => onConfirm(false)}
+          >
+            <span style={{ fontSize: '1.2rem' }}>📌</span>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 700 }}>מחק רק את הפרויקט</div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.8, fontWeight: 400 }}>מסיר את הפרויקט מהמסך – הקבצים נשארים כמו שהם</div>
+            </div>
+          </button>
+          <button className="btn btn-secondary" style={{ width: '100%' }} onClick={onCancel}>
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectsScreen({ projects, onSelect, onCreateNew, onDelete, error }) {
+  const [deleteTarget, setDeleteTarget] = React.useState(null);
+
+  const handleDeleteConfirm = (deleteFiles) => {
+    onDelete(deleteTarget.id, deleteFiles);
+    setDeleteTarget(null);
+  };
+
   return (
     <section className="screen active" style={{ width: '100%', maxWidth: '1100px' }}>
+      {deleteTarget && (
+        <DeleteConfirmDialog
+          project={deleteTarget}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDeleteConfirm}
+        />
+      )}
       <div style={{ marginBottom: '28px' }}>
         <h1>בחר פרויקט למחקר</h1>
         <p className="subtitle">בחר באחד מהפרויקטים הפעילים או הקם פרויקט מחקרי חדש.</p>
@@ -283,7 +353,16 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, error }) {
             key={p.id}
             className={`project-card ${p.is_finished ? 'finished' : ''}`}
             onClick={() => !p.is_finished && onSelect(p)}
+            style={{ position: 'relative' }}
           >
+            {/* Delete button – stops propagation so it doesn't open the project */}
+            <button
+              className="project-delete-btn"
+              title="מחק פרויקט"
+              onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+            >
+              🗑️
+            </button>
             <h3>{p.name}</h3>
             <div className="project-meta">
               <span>חוקר אחראי: {p.owner}</span>
@@ -299,14 +378,249 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, error }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Workflow Builder Helper – used inside NewProjectScreen
+// ---------------------------------------------------------------------------
+
+const FIELD_TYPES = [
+  { value: 'input_text', label: 'שדה טקסט חופשי' },
+  { value: 'textarea', label: 'תיבת טקסט (textarea)' },
+  { value: 'button_group', label: 'כפתורי בחירה' },
+  { value: 'select', label: 'רשימה נגללת' },
+];
+
+function WorkflowBuilder({ steps, onChange }) {
+  // Stores raw comma-separated text while the user is typing,
+  // so the comma character itself isn't immediately consumed by the parser.
+  const [optionsTexts, setOptionsTexts] = useState({});
+
+  const addStep = () => {
+    onChange([...steps, { title: '', fields: [] }]);
+  };
+
+  const removeStep = (si) => {
+    onChange(steps.filter((_, i) => i !== si));
+  };
+
+  const updateStep = (si, key, val) => {
+    const updated = steps.map((s, i) => i === si ? { ...s, [key]: val } : s);
+    onChange(updated);
+  };
+
+  const addField = (si) => {
+    const updated = steps.map((s, i) =>
+      i === si ? { ...s, fields: [...s.fields, { id: `field_${Date.now()}`, label: '', component: 'input_text', placeholder: '', options: [] }] } : s
+    );
+    onChange(updated);
+  };
+
+  const removeField = (si, fi) => {
+    const updated = steps.map((s, i) =>
+      i === si ? { ...s, fields: s.fields.filter((_, j) => j !== fi) } : s
+    );
+    onChange(updated);
+  };
+
+  const updateField = (si, fi, key, val) => {
+    const updated = steps.map((s, i) =>
+      i === si ? {
+        ...s, fields: s.fields.map((f, j) => j === fi ? { ...f, [key]: val } : f)
+      } : s
+    );
+    onChange(updated);
+  };
+
+  // While typing: store raw text locally (allows commas mid-sentence)
+  const handleOptionsChange = (si, fi, val) => {
+    setOptionsTexts(prev => ({ ...prev, [`${si}_${fi}`]: val }));
+  };
+
+  // On blur: parse raw text into array and push to real state
+  const handleOptionsBlur = (si, fi) => {
+    const key = `${si}_${fi}`;
+    const raw = optionsTexts[key] ?? (steps[si]?.fields[fi]?.options || []).join(', ');
+    const opts = raw.split(',').map(o => o.trim()).filter(Boolean);
+    updateField(si, fi, 'options', opts);
+    // Remove from local cache so value is now driven by real state
+    setOptionsTexts(prev => { const c = { ...prev }; delete c[key]; return c; });
+  };
+
+  // Decide what value to show in the options input
+  const getOptionsText = (si, fi, field) => {
+    const key = `${si}_${fi}`;
+    return key in optionsTexts ? optionsTexts[key] : (field.options || []).join(', ');
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {steps.map((step, si) => (
+        <div key={si} style={{
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          padding: '18px',
+          background: 'var(--bg-secondary)',
+          position: 'relative'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <span style={{ fontWeight: 600, color: 'var(--accent)', fontSize: '0.9rem' }}>שלב {si + 1}</span>
+            <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem', minWidth: 'auto' }} onClick={() => removeStep(si)}>
+              ✕ הסר שלב
+            </button>
+          </div>
+          <div className="field-group">
+            <label>כותרת השלב</label>
+            <input
+              type="text"
+              value={step.title}
+              onChange={e => updateStep(si, 'title', e.target.value)}
+              placeholder={`למשל: שלב ${si + 1} – זיהוי ישות`}
+            />
+          </div>
+
+          {step.fields.map((field, fi) => (
+            <div key={fi} style={{
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '14px',
+              marginBottom: '12px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>שדה {fi + 1}</span>
+                <button className="btn btn-secondary" style={{ padding: '3px 8px', fontSize: '0.75rem', minWidth: 'auto' }} onClick={() => removeField(si, fi)}>
+                  ✕
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="field-group" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '0.8rem' }}>שם השדה (תווית)</label>
+                  <input
+                    type="text"
+                    value={field.label}
+                    onChange={e => updateField(si, fi, 'label', e.target.value)}
+                    placeholder="למשל: בחר ישות"
+                  />
+                </div>
+                <div className="field-group" style={{ margin: 0 }}>
+                  <label style={{ fontSize: '0.8rem' }}>סוג קלט</label>
+                  <select value={field.component} onChange={e => updateField(si, fi, 'component', e.target.value)}>
+                    {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              {(field.component === 'input_text' || field.component === 'textarea') && (
+                <div className="field-group" style={{ marginTop: '10px', marginBottom: 0 }}>
+                  <label style={{ fontSize: '0.8rem' }}>טקסט עזר (Placeholder)</label>
+                  <input
+                    type="text"
+                    value={field.placeholder}
+                    onChange={e => updateField(si, fi, 'placeholder', e.target.value)}
+                    placeholder="למשל: בנק ישראל"
+                  />
+                </div>
+              )}
+              {(field.component === 'button_group' || field.component === 'select') && (
+                <div className="field-group" style={{ marginTop: '10px', marginBottom: 0 }}>
+                  <label style={{ fontSize: '0.8rem' }}>אפשרויות (מופרדות בפסיק) – לחץ Tab או צא מהשדה לאישור</label>
+                  <input
+                    type="text"
+                    value={getOptionsText(si, fi, field)}
+                    onChange={e => handleOptionsChange(si, fi, e.target.value)}
+                    onBlur={() => handleOptionsBlur(si, fi)}
+                    placeholder="למשל: חיובי, שלילי, ניטרלי"
+                  />
+                  {/* Live preview of parsed options */}
+                  {(steps[si]?.fields[fi]?.options?.length > 0) && (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                      {steps[si].fields[fi].options.map((opt, oi) => (
+                        <span key={oi} style={{
+                          background: 'rgba(88,166,255,0.15)',
+                          color: 'var(--accent)',
+                          padding: '2px 10px',
+                          borderRadius: '999px',
+                          fontSize: '0.78rem',
+                          fontWeight: 500
+                        }}>{opt}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <button className="btn btn-secondary" style={{ width: '100%', marginTop: '4px', fontSize: '0.85rem' }} onClick={() => addField(si)}>
+            + הוסף שדה לשלב זה
+          </button>
+        </div>
+      ))}
+      <button className="btn btn-secondary" style={{ border: '2px dashed var(--border)', background: 'transparent' }} onClick={addStep}>
+        + הוסף שלב חדש
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NewProjectScreen – now with full workflow builder
+// ---------------------------------------------------------------------------
+
 function NewProjectScreen({ onSubmit, onBack, error }) {
   const [name, setName] = useState('');
+  const [workflowMode, setWorkflowMode] = useState('preset'); // 'preset' | 'custom'
   const [workflow, setWorkflow] = useState('A');
+  const [contentType, setContentType] = useState('both');
+  const [customSteps, setCustomSteps] = useState([]);
+
+  // CSV source picker
+  const [sourceType, setSourceType] = useState('local'); // 'local' | 'gdrive' | 's3'
   const [source, setSource] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null); // null | 'ok' | 'error'
+  const [uploadMsg, setUploadMsg] = useState('');
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadStatus(null);
+    setUploadMsg('');
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload-csv', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSource(data.path);
+        setUploadStatus('ok');
+        setUploadMsg(`✓ הקובץ הועלה: ${data.path}`);
+      } else {
+        setUploadStatus('error');
+        setUploadMsg(data.error || 'שגיאה בהעלאה');
+      }
+    } catch (err) {
+      setUploadStatus('error');
+      setUploadMsg('שגיאת רשת: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (workflowMode === 'custom') {
+      onSubmit({ name, workflow_type: 'A', source_csv: source, custom_schema: { steps: customSteps, content_type: contentType } });
+    } else {
+      onSubmit({ name, workflow_type: workflow, source_csv: source });
+    }
+  };
 
   return (
     <section className="screen active">
-      <div className="card">
+      <div className="card" style={{ maxWidth: '720px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
           <button className="btn btn-secondary" style={{ padding: '8px 14px', minWidth: 'auto' }} onClick={onBack}>
             ← חזור
@@ -314,27 +628,190 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
           <h2 style={{ margin: 0 }}>הקמת פרויקט מחקרי חדש</h2>
         </div>
         {error && <div className="alert alert-error">{error}</div>}
+
+        {/* Project name */}
         <div className="field-group">
           <label>שם הפרויקט</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder='לדוגמה: מחקר זיהוי אובייקטים 2024' />
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="לדוגמה: מחקר זיהוי אובייקטים 2024"
+          />
         </div>
+
+        {/* CSV Source Picker */}
         <div className="field-group">
-          <label>סוג תהליך עבודה</label>
-          <select value={workflow} onChange={(e) => setWorkflow(e.target.value)}>
-            <option value="A">א׳ – קשר תמונה-טקסט</option>
-            <option value="B">ב׳ – ניתוח ישויות וסנטימנט</option>
-            <option value="C">ג׳ – כתיבת כיתובים (Captions)</option>
-          </select>
+          <label>מקור קובץ הנתונים (CSV)</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '8px', marginBottom: '14px' }}>
+            {[
+              { value: 'local', icon: '📁', label: 'מהמחשב' },
+              { value: 'gdrive', icon: '☁️', label: 'Google Drive' },
+              { value: 's3', icon: '🪣', label: 'AWS S3' },
+            ].map(st => (
+              <div
+                key={st.value}
+                className={`preset-option ${sourceType === st.value ? 'selected' : ''}`}
+                style={{ flexDirection: 'column', justifyContent: 'center', textAlign: 'center', padding: '12px 8px', gap: '4px' }}
+                onClick={() => { setSourceType(st.value); setSource(''); setUploadStatus(null); setUploadMsg(''); }}
+              >
+                <span style={{ fontSize: '1.3rem' }}>{st.icon}</span>
+                <strong style={{ fontSize: '0.83rem' }}>{st.label}</strong>
+              </div>
+            ))}
+          </div>
+
+          {/* Local upload */}
+          {sourceType === 'local' && (
+            <div>
+              <label
+                htmlFor="csv-upload"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  padding: '16px', borderRadius: '10px',
+                  border: '2px dashed var(--glass-border)',
+                  cursor: uploading ? 'not-allowed' : 'pointer',
+                  background: 'rgba(255,255,255,0.03)',
+                  transition: 'border-color 0.2s',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {uploading ? <><span className="spinner" /><span>מעלה...</span></> : <><span>📂</span><span>{source ? 'עלה בהצלחה – לחץ לבחירת קובץ אחר' : 'לחץ לבחירת קובץ CSV'}</span></>}
+              </label>
+              <input
+                id="csv-upload"
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+                disabled={uploading}
+              />
+              {uploadMsg && (
+                <p className={`field-hint`} style={{ marginTop: '8px', color: uploadStatus === 'ok' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                  {uploadMsg}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Google Drive */}
+          {sourceType === 'gdrive' && (
+            <div>
+              <input
+                type="text"
+                value={source}
+                onChange={e => setSource(e.target.value)}
+                placeholder="הדבק לינק שיתוף של Google Drive (קובץ CSV)"
+              />
+              <p className="field-hint">וודא שהקובץ שיתוף ל׳כל מי שיש לו קישור׳ ושהוא בפורמט CSV</p>
+            </div>
+          )}
+
+          {/* S3 */}
+          {sourceType === 's3' && (
+            <div>
+              <input
+                type="text"
+                value={source}
+                onChange={e => setSource(e.target.value)}
+                placeholder="למשל: s3://my-bucket/data/labels.csv"
+              />
+              <p className="field-hint">הזן S3 URI מלא (s3://bucket/key) – ודא שלשרת יש הרשאות גישה</p>
+            </div>
+          )}
         </div>
+
+        <hr className="divider" />
+
+        {/* Workflow mode toggle */}
         <div className="field-group">
-          <label>נתיב קובץ מקור (CSV)</label>
-          <input type="text" value={source} onChange={(e) => setSource(e.target.value)} placeholder="למשל: backend/data/my_data.csv" />
-          <p className="field-hint">הקובץ חייב להכיל את העמודות: TEXT ,IMAGE_URL</p>
+          <label>בחר סוג תהליך עבודה</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px' }}>
+            <div
+              className={`workflow-mode-card ${workflowMode === 'preset' ? 'selected' : ''}`}
+              onClick={() => setWorkflowMode('preset')}
+            >
+              <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>📋</div>
+              <strong>תהליך מוגדר מראש</strong>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                בחר מתוך תהליכים A, B, C הקיימים במערכת
+              </p>
+            </div>
+            <div
+              className={`workflow-mode-card ${workflowMode === 'custom' ? 'selected' : ''}`}
+              onClick={() => setWorkflowMode('custom')}
+            >
+              <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>🔧</div>
+              <strong>בנה תהליך מותאם אישית</strong>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                הגדר שלבים, שדות ואפשרויות לפי הצורך
+              </p>
+            </div>
+          </div>
         </div>
+
+        {/* Preset workflow selector */}
+        {workflowMode === 'preset' && (
+          <div className="field-group">
+            <label>תהליך עבודה</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                { value: 'A', label: 'א׳ – קשר תמונה-טקסט', desc: 'מתאים לניתוח הקשר בין תמונה לטקסט נלווה. מציג תמונה וטקסט, מבקש סיווג הקשר.', icon: '🖼️' },
+                { value: 'B', label: 'ב׳ – ניתוח ישויות וסנטימנט', desc: 'תהליך מרובה שלבים: זיהוי ישות, קביעת נושא, וניתוח סנטימנט.', icon: '🔍' },
+                { value: 'C', label: 'ג׳ – כתיבת כיתובים (Captions)', desc: 'הצגת תמונה וביקוש לכתיבת תיאור חופשי (Caption).', icon: '✍️' },
+              ].map(opt => (
+                <div
+                  key={opt.value}
+                  className={`preset-option ${workflow === opt.value ? 'selected' : ''}`}
+                  onClick={() => setWorkflow(opt.value)}
+                >
+                  <span style={{ fontSize: '1.4rem' }}>{opt.icon}</span>
+                  <div>
+                    <strong>{opt.label}</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{opt.desc}</p>
+                  </div>
+                  <div style={{ marginRight: 'auto', width: '18px', height: '18px', borderRadius: '50%', border: '2px solid var(--accent)', background: workflow === opt.value ? 'var(--accent)' : 'transparent', flexShrink: 0 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Custom workflow builder */}
+        {workflowMode === 'custom' && (
+          <>
+            <div className="field-group">
+              <label>סוג תוכן הנתונים</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                {[
+                  { value: 'image', label: '🖼️ תמונות בלבד' },
+                  { value: 'text', label: '📝 טקסט בלבד' },
+                  { value: 'both', label: '🖼️+📝 תמונה וטקסט' },
+                ].map(ct => (
+                  <div
+                    key={ct.value}
+                    className={`preset-option ${contentType === ct.value ? 'selected' : ''}`}
+                    style={{ justifyContent: 'center', textAlign: 'center', padding: '12px', flexDirection: 'column', gap: '4px' }}
+                    onClick={() => setContentType(ct.value)}
+                  >
+                    <strong style={{ fontSize: '0.85rem' }}>{ct.label}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="field-group">
+              <label>שלבי תהליך העבודה</label>
+              <WorkflowBuilder steps={customSteps} onChange={setCustomSteps} />
+            </div>
+          </>
+        )}
+
         <hr className="divider" />
         <div className="btn-row">
           <button className="btn btn-secondary" onClick={onBack}>ביטול</button>
-          <button className="btn btn-primary" onClick={() => onSubmit({ name, workflow_type: workflow, source_csv: source })}>
+          <button className="btn btn-primary" onClick={handleSubmit}>
             יצירת פרויקט
           </button>
         </div>
@@ -404,10 +881,10 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
               <span>טוען הגדרות תהליך...</span>
             </div>
           ) : config ? (
-            <DynamicWorkflow 
-              key={task.row_id} 
-              config={config} 
-              onSubmit={onSubmit} 
+            <DynamicWorkflow
+              key={task.row_id}
+              config={config}
+              onSubmit={onSubmit}
             />
           ) : (
             <div className="alert alert-error">שגיאה בטעינת הגדרות התהליך</div>
@@ -470,14 +947,14 @@ function DynamicWorkflow({ config, onSubmit }) {
       )}
 
       <h2>{currentStep.title}</h2>
-      
+
       <div className="step-fields">
         {currentStep.fields.map(field => (
-          <DynamicField 
-            key={field.id} 
-            field={field} 
-            value={formData[field.id] || ''} 
-            onChange={val => handleFieldChange(field.id, val)} 
+          <DynamicField
+            key={field.id}
+            field={field}
+            value={formData[field.id] || ''}
+            onChange={val => handleFieldChange(field.id, val)}
           />
         ))}
       </div>
@@ -488,9 +965,9 @@ function DynamicWorkflow({ config, onSubmit }) {
             חזור
           </button>
         )}
-        <button 
-          className="btn btn-primary" 
-          onClick={handleAction} 
+        <button
+          className="btn btn-primary"
+          onClick={handleAction}
           disabled={!canGoNext}
         >
           {isLastStep ? 'סיום ושליחה' : 'הבא ←'}
@@ -508,19 +985,19 @@ function DynamicField({ field, value, onChange }) {
     switch (field.component) {
       case 'input_text':
         return (
-          <input 
-            type="text" 
-            value={value} 
-            onChange={e => onChange(e.target.value)} 
-            placeholder={field.placeholder} 
+          <input
+            type="text"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={field.placeholder}
           />
         );
       case 'textarea':
         return (
-          <textarea 
-            value={value} 
-            onChange={e => onChange(e.target.value)} 
-            placeholder={field.placeholder} 
+          <textarea
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={field.placeholder}
             rows={4}
           />
         );

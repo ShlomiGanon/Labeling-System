@@ -202,7 +202,7 @@ class LocalStorage(BaseStorage):
             file_exists = os.path.isfile(master_file_path)
 
             # Open file in 'append' mode ('a').
-            with open(master_file_path, mode="a", encoding="utf-8", newline="") as csv_file:
+            with open(master_file_path, mode="a", encoding="utf-8-sig", newline="") as csv_file:
                 writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
                 # Write header only on the very first entry.

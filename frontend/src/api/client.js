@@ -21,7 +21,7 @@ async function request(method, url, body = null) {
   }
 
   try {
-    const res  = await fetch(url, options)
+    const res = await fetch(url, options)
     const data = await res.json()
     return { ok: res.ok, data }
   } catch (err) {
@@ -31,7 +31,7 @@ async function request(method, url, body = null) {
 }
 
 // Simple shortcuts for GET and POST requests
-const get  = (url)       => request('GET',  url)
+const get = (url) => request('GET', url)
 const post = (url, body) => request('POST', url, body)
 
 
@@ -40,13 +40,13 @@ const post = (url, body) => request('POST', url, body)
 // ---------------------------------------------------------------------------
 
 /** Log in with a username. */
-export const login   = (userName) => post('/api/login',  { user_name: userName })
+export const login = (userName) => post('/api/login', { user_name: userName })
 
 /** Log out the current user. */
-export const logout  = ()         => post('/api/logout', {})
+export const logout = () => post('/api/logout', {})
 
 /** Check if the user is already logged in when the page loads. */
-export const getMe   = ()         => get('/api/me')
+export const getMe = () => get('/api/me')
 
 
 // ---------------------------------------------------------------------------
@@ -58,6 +58,10 @@ export const getProjects = () => get('/api/projects')
 
 /** Create a new labeling project. */
 export const createProject = (data) => post('/api/projects', data)
+
+/** Delete a project. If deleteFiles=true, also removes source and master CSVs. */
+export const deleteProject = (projectId, deleteFiles = false) =>
+  request('DELETE', `/api/projects/${projectId}?delete_files=${deleteFiles}`)
 
 
 // ---------------------------------------------------------------------------
