@@ -1,2 +1,6 @@
 row_id,labeler_name,workflow,relationship
 1,שלומי,A,Independent
+1,שלומי,A,Independent
+2,שלומי,A,Noise
+3,שלומי,A,Context-Dependent
+4,.,A,Context-Dependent
