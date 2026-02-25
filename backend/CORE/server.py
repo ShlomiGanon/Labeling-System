@@ -27,7 +27,7 @@ if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
 from labeling_engine import LabelingEngine
-from storage import LocalStorage
+from storage import LocalStorage, RemoteStorage
 
 # --- App Initialization ---
 
@@ -38,35 +38,87 @@ app.secret_key = "labeling-system-secret-key-change-in-production"
 PROJECTS_FILE = os.path.join(BASE_DIR, "projects.json")
 
 # In-memory session-like storage for active labeling engines.
-# This prevents reloading CSVs from disk on every single request.
 _engines: dict = {}
 
 def get_engine(project: dict) -> LabelingEngine:
     """
     Retrieves an existing LabelingEngine or creates a new one if it doesn't exist.
-    
-    Args:
-        project (dict): Dictionary containing project metadata (id, paths, etc.).
-        
-    Returns:
-        LabelingEngine: The active engine instance for this project.
     """
     pid = project["id"]
     if pid not in _engines:
-        # Create a new engine instance for this specific project.
-        storage = LocalStorage()
+        # Determine based on path if it's local or remote
+        source_path = project["source_csv"]
+        is_remote = source_path.startswith("http") or "drive.google.com" in source_path
+        
+        storage = RemoteStorage() if is_remote else LocalStorage()
         master_path = os.path.join(BASE_DIR, project["master_csv"])
         engine = LabelingEngine(storage, master_path)
+        engine.init_error = None
 
-        # Pre-load the source data into the engine's queue.
-        source_path = os.path.join(BASE_DIR, project["source_csv"])
-        if os.path.exists(source_path):
-            engine.load_source(source_path)
-        else:
-            logger.warning(f"Source CSV not found at: {source_path}")
+        # Pre-load the source data
+        try:
+            if is_remote:
+                engine.load_source(source_path)
+            else:
+                full_source_path = os.path.join(BASE_DIR, source_path)
+                if os.path.exists(full_source_path):
+                    engine.load_source(full_source_path)
+                else:
+                    msg = f"Source CSV not found at: {full_source_path}"
+                    logger.warning(msg)
+                    engine.init_error = msg
+        except Exception as e:
+            logger.error(f"Error loading source data for project {pid}: {e}")
+            engine.init_error = str(e)
 
         _engines[pid] = engine
     return _engines[pid]
+
+# ---------------------------------------------------------------------------
+# Background Refresher (Polling for remote changes)
+# ---------------------------------------------------------------------------
+
+import threading
+import time
+
+def start_refresher():
+    """
+    Starts a background thread that periodically polls remote CSV files for new rows.
+    """
+    def refresh_loop():
+        import json
+        while True:
+            # Check every 60 seconds.
+            time.sleep(60) 
+            
+            try:
+                # Load projects directly to avoid circular imports with API.api
+                if not os.path.exists(PROJECTS_FILE):
+                    continue
+                    
+                with open(PROJECTS_FILE, encoding="utf-8") as f:
+                    projects_data = json.load(f).get("projects", [])
+                
+                current_engine_ids = list(_engines.keys())
+                for pid in current_engine_ids:
+                    engine = _engines.get(pid)
+                    if not engine: continue
+                    
+                    if isinstance(engine._storage, RemoteStorage):
+                        # Find matching project config
+                        from CORE.persistence import load_projects
+                        projects_data = load_projects(PROJECTS_FILE)
+                        project = next((p for p in projects_data if p["id"] == pid), None)
+                        if project:
+                            engine.load_source(project["source_csv"])
+            except Exception as e:
+                logging.getLogger("LabelingSystem").error(f"Background refresher error: {e}")
+
+    thread = threading.Thread(target=refresh_loop, daemon=True)
+    thread.start()
+
+# Start the refresher as soon as the module is loaded
+start_refresher()
 
 @app.after_request
 def add_cors_headers(response):

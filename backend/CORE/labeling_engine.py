@@ -5,6 +5,8 @@ This module coordinates the core labeling logic, ensuring that rows are distribu
 uniquely and completed work is recorded systematically.
 """
 
+import os
+import csv
 import threading
 import logging
 from collections import deque
@@ -38,25 +40,62 @@ class LabelingEngine:
         # Format: { "username": SourceRow_object }
         self._active_rows: Dict[str, SourceRow] = {}
 
+        # REASONING: Track completed IDs to prevent double labeling during incremental updates.
+        self._processed_ids: set = set()
+        self._load_processed_ids()
+
         # REASONING: A global lock is used to prevent "Double Popping".
-        # If two users refresh their page at the exact same millisecond, 
-        # without this lock, they might both be assigned the same CSV row.
         self._lock = threading.Lock()
+
+    def _load_processed_ids(self):
+        """
+        Reads the master results file to identify which rows are already completed.
+        """
+        if not os.path.exists(self._master_file_path):
+            return
+
+        try:
+            with open(self._master_file_path, mode="r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    rid = row.get("row_id")
+                    if rid:
+                        self._processed_ids.add(str(rid))
+        except Exception as e:
+            self._logger.error(f"Error loading processed IDs from {self._master_file_path}: {e}")
 
     def load_source(self, csv_file_path: str) -> int:
         """
-        Populate the engine's internal queue with data from a source CSV.
+        Populate or update the engine's internal queue with data from a source CSV.
+        Only adds rows that aren't already processed, active, or in the queue.
 
         Args:
             csv_file_path (str): Path to the CSV with image/text data.
 
         Returns:
-            int: Number of rows successfully loaded into the queue.
+            int: Number of NEW rows successfully added to the queue.
         """
-        rows = self._storage.load_source_csv(csv_file_path)
-        self._row_queue = deque(rows)
-        self._logger.info(f"Initialized queue with {len(rows)} rows from {csv_file_path}")
-        return len(rows)
+        with self._lock:
+            # Refresh processed IDs just in case the file was modified externally
+            self._load_processed_ids()
+            
+            new_rows = self._storage.load_source_csv(csv_file_path)
+            
+            # Identify what's already in the queue or active
+            current_queued_ids = {row.row_id for row in self._row_queue}
+            current_active_ids = {row.row_id for row in self._active_rows.values()}
+            
+            added_count = 0
+            for row in new_rows:
+                if (row.row_id not in self._processed_ids and 
+                    row.row_id not in current_queued_ids and 
+                    row.row_id not in current_active_ids):
+                    self._row_queue.append(row)
+                    added_count += 1
+            
+            if added_count > 0:
+                self._logger.info(f"Added {added_count} NEW rows from {csv_file_path}")
+            return added_count
 
     def get_next_row(self, user_name: str) -> Optional[SourceRow]:
         """
@@ -103,7 +142,7 @@ class LabelingEngine:
             active_row = self._active_rows[user_name]
 
             # Integrity Check: The user must be submitting for the row they were actually assigned.
-            if label.row_id != active_row.row_id:
+            if str(label.row_id) != str(active_row.row_id):
                 raise ValueError(f"ID Mismatch: User assigned {active_row.row_id}, but submitted {label.row_id}")
 
             # Persist to disk via our storage implementation.
@@ -111,6 +150,8 @@ class LabelingEngine:
             success = self._storage.append_label(label_dict, self._master_file_path)
 
             if success:
+                # Update processed IDs so we don't reload this row if the source CSV still has it
+                self._processed_ids.add(str(active_row.row_id))
                 # Cleanup internal state once the data is safely on disk.
                 del self._active_rows[user_name]
                 self._logger.info(f"Row {active_row.row_id} tagged by {user_name} and saved.")

@@ -63,6 +63,10 @@ export const createProject = (data) => post('/api/projects', data)
 export const deleteProject = (projectId, deleteFiles = false) =>
   request('DELETE', `/api/projects/${projectId}?delete_files=${deleteFiles}`)
 
+/** Update an existing project's details. */
+export const updateProject = (projectId, data) =>
+  request('PUT', `/api/projects/${projectId}`, data)
+
 
 // ---------------------------------------------------------------------------
 // Tasks

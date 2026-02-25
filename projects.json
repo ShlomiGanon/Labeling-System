@@ -1,3 +1,33 @@
 {
-  "projects": []
+  "projects": [
+    {
+      "id": "a61b7eeb-c3f9-4273-a2e8-98e133192711",
+      "name": "בדיקה על GOOGLE DRIVE",
+      "owner": "mm",
+      "workflow_type": "CUSTOM",
+      "source_csv": "https://docs.google.com/spreadsheets/d/15Bb4vxWjdVYwZe3dbyZRAsPonjopSM-yULVhIHkSssM/edit?usp=sharing",
+      "master_csv": "backend/data/master_בדיקה_על_google_drive.csv",
+      "custom_schema": {
+        "steps": [
+          {
+            "fields": [
+              {
+                "component": "button_group",
+                "id": "field_1772051068703",
+                "label": "מי הכי גבר?",
+                "options": [
+                  "שלומי",
+                  "בר",
+                  "אופק"
+                ],
+                "placeholder": ""
+              }
+            ],
+            "title": "ענה על השאלה הבאה"
+          }
+        ],
+        "content_type": "image"
+      }
+    }
+  ]
 }

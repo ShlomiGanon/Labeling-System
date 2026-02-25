@@ -753,33 +753,43 @@ hr.divider {
   box-shadow: 0 0 12px rgba(88, 166, 255, 0.15);
 }
 
-/* ── Project delete button ──────────────────────────────────────────── */
-.project-delete-btn {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
+/* ── Project action buttons (Edit / Delete) ─────────────────────────── */
+.project-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
   color: var(--text-secondary);
-  font-size: 0.9rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity var(--transition), background var(--transition), color var(--transition);
-  line-height: 1;
-  padding: 0;
+  transition: all var(--transition);
+  font-size: 0.95rem;
+  opacity: 0.4;
+  transform: none;
 }
 
-.project-card:hover .project-delete-btn {
+.project-card:hover .project-action-btn {
   opacity: 1;
 }
 
-.project-delete-btn:hover {
-  background: rgba(248, 81, 73, 0.18);
+.project-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.edit-btn:hover {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.delete-btn:hover {
+  background: rgba(248, 81, 73, 0.15);
   color: var(--accent-danger);
+  border-color: var(--accent-danger);
 }

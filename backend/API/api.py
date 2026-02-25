@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename
 
 # Local imports from our structured backend
 from CORE.server import app, PROJECTS_FILE, get_engine
+from CORE.persistence import load_projects, save_projects
 import CORE.workflows as workflows
 from CORE.storage import LocalStorage
 from CORE.models import WorkflowType, EntityType, Sentiment, ImageTextRelationship, CustomLabel
@@ -26,29 +27,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Internal Helpers
 # ---------------------------------------------------------------------------
-
-def load_projects() -> list:
-    """
-    Reads the projects.json configuration file.
-    
-    Returns:
-        list: A list of all project metadata dictionaries.
-    """
-    if not os.path.exists(PROJECTS_FILE):
-        return []
-    with open(PROJECTS_FILE, encoding="utf-8") as f:
-        return json.load(f).get("projects", [])
-
-
-def save_projects(projects: list) -> None:
-    """
-    Persists the project list to disk.
-    
-    Args:
-        projects (list): The list of project objects to save.
-    """
-    with open(PROJECTS_FILE, "w", encoding="utf-8") as f:
-        json.dump({"projects": projects}, f, ensure_ascii=False, indent=2)
 
 
 def current_user() -> str | None:
@@ -174,24 +152,31 @@ def list_projects():
     auth_check = require_login()
     if auth_check: return auth_check
 
-    projects = load_projects()
+    projects = load_projects(PROJECTS_FILE)
     result = []
     
     for p in projects:
         try:
             engine = get_engine(p)
-            result.append({
-                "id": p["id"],
-                "name": p["name"],
-                "owner": p["owner"],
-                "workflow_type": p["workflow_type"],
+            # Start with a copy of all static project metadata
+            proj_summary = p.copy()
+            # Add dynamic/computed fields from the engine
+            proj_summary.update({
                 "rows_remaining": engine.get_queue_size(),
                 "is_finished": engine.is_finished()
             })
+            
+            # If the engine failed to load its source data, attach the error
+            if getattr(engine, "init_error", None):
+                proj_summary["init_error"] = engine.init_error
+                
+            result.append(proj_summary)
         except Exception as e:
             logger.error(f"Failed to load project '{p['name']}': {e}")
             result.append({
-                "id": p["id"], "name": p["name"], "error": "Disk error"
+                "id": p["id"], 
+                "name": p["name"], 
+                "error": "Engine initialization failed"
             })
             
     return jsonify({"projects": result})
@@ -281,14 +266,65 @@ def create_project():
     if custom_schema:
         project["custom_schema"] = custom_schema
 
-    projects = load_projects()
+    projects = load_projects(PROJECTS_FILE)
     projects.append(project)
-    save_projects(projects)
+    save_projects(PROJECTS_FILE, projects)
 
     # Pre-warm the engine
     get_engine(project)
 
     return jsonify(project), 201
+
+
+@api_bp.route("/projects/<project_id>", methods=["PUT"])
+def update_project(project_id):
+    """
+    Updates details of an existing project.
+    If source_csv changes, the engine is cleared to force a reload.
+    """
+    auth_check = require_login()
+    if auth_check: return auth_check
+
+    data = request.get_json(force=True)
+    projects = load_projects(PROJECTS_FILE)
+    
+    idx = next((i for i, p in enumerate(projects) if p["id"] == project_id), -1)
+    if idx == -1:
+        return jsonify({"error": "Project not found"}), 404
+
+    project = projects[idx]
+    
+    # Update fields
+    if "name" in data: 
+        project["name"] = data["name"].strip()
+    if "owner" in data: 
+        project["owner"] = data["owner"].strip()
+    if "workflow_type" in data:
+        project["workflow_type"] = data["workflow_type"]
+    
+    if "custom_schema" in data:
+        project["custom_schema"] = data["custom_schema"]
+    elif "workflow_type" in data and data["workflow_type"] != "CUSTOM":
+        # If switching back to preset, remove custom_schema if it exists
+        project.pop("custom_schema", None)
+    
+    source_changed = False
+    if "source_csv" in data:
+        new_source = data["source_csv"].strip()
+        if new_source != project["source_csv"]:
+            project["source_csv"] = new_source
+            source_changed = True
+            
+    save_projects(PROJECTS_FILE, projects)
+
+    # If the source changed, we must drop the old engine instance 
+    if source_changed:
+        from CORE.server import _engines
+        if project_id in _engines:
+            del _engines[project_id]
+            logger.info(f"Invalidated engine cache for project {project_id} due to source change.")
+
+    return jsonify(project), 200
 
 
 @api_bp.route("/projects/<project_id>", methods=["DELETE"])
@@ -345,13 +381,18 @@ def get_task(project_id: str):
     auth_check = require_login()
     if auth_check: return auth_check
 
-    projects = load_projects()
+    projects = load_projects(PROJECTS_FILE)
     project  = next((p for p in projects if p["id"] == project_id), None)
     if not project:
         return jsonify({"error": "Project not found"}), 404
 
     engine = get_engine(project)
-    row    = engine.get_next_row(current_user())
+    
+    # If the engine failed to load the CSV, surface the error now
+    if getattr(engine, "init_error", None):
+        return jsonify({"error": f"Data Loading Error: {engine.init_error}"}), 500
+
+    row = engine.get_next_row(current_user())
 
     if row is None:
         return jsonify({"finished": True})
@@ -376,7 +417,7 @@ def get_project_config(project_id: str):
     auth_check = require_login()
     if auth_check: return auth_check
 
-    projects = load_projects()
+    projects = load_projects(PROJECTS_FILE)
     project  = next((p for p in projects if p["id"] == project_id), None)
     if not project:
         return jsonify({"error": "Project not found"}), 404
@@ -412,7 +453,7 @@ def submit_task(project_id: str):
     auth_check = require_login()
     if auth_check: return auth_check
 
-    projects = load_projects()
+    projects = load_projects(PROJECTS_FILE)
     project  = next((p for p in projects if p["id"] == project_id), None)
     if not project:
         return jsonify({"error": "Project not found"}), 404

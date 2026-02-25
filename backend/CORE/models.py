@@ -206,18 +206,18 @@ class SourceRow:
         Checks if this row actually contains an image reference.
         
         Returns:
-            bool: True if image_path is not just whitespace.
+            bool: True if image_path is not just whitespace or None.
         """
-        return bool(self.image_path.strip())
+        return bool(self.image_path and str(self.image_path).strip())
 
     def has_text(self) -> bool:
         """
         Checks if this row contains text to be analyzed.
         
         Returns:
-            bool: True if text_content is not just whitespace.
+            bool: True if text_content is not just whitespace or None.
         """
-        return bool(self.text_content.strip())
+        return bool(self.text_content and str(self.text_content).strip())
 
 
 @dataclass

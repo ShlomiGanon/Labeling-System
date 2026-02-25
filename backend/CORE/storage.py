@@ -105,26 +105,59 @@ def identify_columns(fieldnames: List[str]) -> Tuple[Optional[str], Optional[str
         
     return id_col, image_col, text_col
 
-def build_source_row_from_dict(row_dict: dict, row_index: int, id_col=None, image_col=None, text_col=None) -> SourceRow:
-    """
-    Creates a SourceRow object from a dictionary representing a CSV line.
+import re
 
-    Args:
-        row_dict (dict): The raw data from one CSV line.
-        row_index (int): The 1-based index of the row in the file (used as fallback ID).
-        id_col (str): The identified ID column name.
-        image_col (str): The identified Image column name.
-        text_col (str): The identified Text column name.
-
-    Returns:
-        SourceRow: The structured data object.
+def build_source_row_from_dict(row_dict: dict, row_index: int) -> SourceRow:
     """
-    # Prefer assigned ID, otherwise use the line number.
-    row_id = str(row_dict.get(id_col, "")).strip() if id_col else str(row_index)
+    Creates a SourceRow object by inspecting the content of every cell in a CSV line,
+    ignoring column headers.
+
+    - Finds the first cell that looks like an image URL.
+    - Finds the longest remaining text cell that isn't the URL.
+    - Tries to find an 'id' column, otherwise falls back to row_index.
+    """
+    row_id = str(row_index)
     
-    # Extract data using the identified column mappings.
-    image_path = str(row_dict.get(image_col, "")).strip() if image_col else ""
-    text_content = str(row_dict.get(text_col, "")).strip() if text_col else ""
+    # Try to find a dedicated ID column case-insensitively
+    for k, v in row_dict.items():
+        if k and str(k).lower().strip() in ("id", "identifier", "row_id", "index"):
+            row_id = str(v).strip()
+            break
+            
+    image_path = ""
+    text_content = ""
+    
+    # Regex to identify image URLs or Google Drive links
+    img_pattern = re.compile(
+        r'^(https?://.*\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?.*)?)$|'  # Standard image URLs
+        r'^(https?://(?:drive\.google\.com|docs\.google\.com)/.*)$', # Google Drive/Docs links
+        re.IGNORECASE
+    )
+
+    # 1. Find the Image URL
+    for val in row_dict.values():
+        str_val = str(val).strip()
+        if not str_val:
+            continue
+            
+        if img_pattern.search(str_val):
+            image_path = str_val
+            break # Stop at the first image found
+            
+    # 2. Find the Text Content (longest string that isn't the image URL)
+    longest_text = ""
+    for val in row_dict.values():
+        str_val = str(val).strip()
+        
+        # Skip empty strings and the string we already identified as the image
+        if not str_val or str_val == image_path:
+            continue
+            
+        # We assume the longest remaining string is the actual text to label
+        if len(str_val) > len(longest_text):
+            longest_text = str_val
+            
+    text_content = longest_text
 
     return SourceRow(row_id=row_id, image_path=image_path, text_content=text_content)
 
@@ -160,11 +193,9 @@ class LocalStorage(BaseStorage):
             
             if not reader.fieldnames: return []
 
-            # Map the CSV headers once for the entire file.
-            id_col, img_col, txt_col = identify_columns(reader.fieldnames)
-
+            # Remove identify_columns
             for idx, raw_row in enumerate(reader):
-                row_obj = build_source_row_from_dict(raw_row, idx + 1, id_col, img_col, txt_col)
+                row_obj = build_source_row_from_dict(raw_row, idx + 1)
                 if row_obj: rows.append(row_obj)
 
         return rows
@@ -217,5 +248,79 @@ class LocalStorage(BaseStorage):
             print(f"Error saving label: {error}")
             return False
 
-# NOTE: S3Storage and GDriveStorage were removed to keep the code clean.
-# They can be added back if cloud storage is needed in the future.
+# ---------------------------------------------------------------------------
+# Remote / URL Storage
+# ---------------------------------------------------------------------------
+
+import urllib.request
+import io
+
+class RemoteStorage(BaseStorage):
+    """
+    Implementation of BaseStorage for remote files (S3 public links, Google Drive public links).
+    """
+
+    def load_source_csv(self, file_path: str) -> List[SourceRow]:
+        """
+        Downloads a remote CSV and parses it.
+        
+        Supports:
+        - Direct links to CSVs.
+        - Google Drive 'view' links (automatically converted to export links if possible).
+        """
+        url = file_path
+        
+        # --- Robust Google Drive Link Handling ---
+        # 1. Google Sheets: .../spreadsheets/d/<ID>/...
+        # 2. Uploaded File: .../file/d/<ID>/...
+        if "drive.google.com" in url or "docs.google.com" in url:
+            file_id = None
+            if "/d/" in url:
+                file_id = url.split("/d/")[1].split("/")[0]
+            elif "id=" in url:
+                file_id = url.split("id=")[1].split("&")[0]
+
+            if file_id:
+                if "/spreadsheets/" in url:
+                    # It's a Google Sheet -> Use export
+                    url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv"
+                else:
+                    # It's a regular uploaded file -> Use direct download endpoint
+                    url = f"https://docs.google.com/uc?export=download&id={file_id}"
+        
+        # We add a User-Agent to avoid some basic blocks from GDrive
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            content = response.read().decode("utf-8-sig")
+            
+            # Check if Google Drive returned an HTML sign-in page instead of a CSV
+            content_lower = content.strip().lower()
+            if content_lower.startswith('<!doctype html') or content_lower.startswith('<html'):
+                raise ValueError("The provided URL requires authentication or is not a raw CSV file. Make sure the link is publicly accessible ('Anyone with the link').")
+
+            csv_file = io.StringIO(content)
+            reader = csv.DictReader(csv_file)
+            
+            if not reader.fieldnames: return []
+            
+            rows = []
+            for idx, raw_row in enumerate(reader):
+                row_obj = build_source_row_from_dict(raw_row, idx + 1)
+                if row_obj: rows.append(row_obj)
+            return rows
+
+
+    def get_media_link(self, path: str) -> str:
+        # For remote storage, we assume the paths in CSV are already URLs 
+        # or relative to the same bucket. For now, return as is.
+        return path
+
+    def append_label(self, label_data: dict, master_file_path: str) -> bool:
+        # Saving results back to remote storage (S3/GDrive) typically requires 
+        # API writes. For simplicity, we keep results in a local CSV.
+        # This can be extended to upload the master file back to S3 after каждой saving.
+        local = LocalStorage()
+        return local.append_label(label_data, master_file_path)
+
+# NOTE: For full S3/GDrive integration (private files, writing back), 
+# libraries like boto3 and google-api-python-client would be required.

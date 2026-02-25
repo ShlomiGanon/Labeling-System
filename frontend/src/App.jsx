@@ -83,6 +83,16 @@ export default function App() {
     }
   };
 
+  const handleUpdateProject = async (projectId, projectData) => {
+    setError('');
+    const { ok, data } = await api.updateProject(projectId, projectData);
+    if (ok) {
+      fetchProjects();
+    } else {
+      setError(data.error || 'Failed to update project');
+    }
+  };
+
   const handleDeleteProject = async (projectId, deleteFiles) => {
     const { ok, data } = await api.deleteProject(projectId, deleteFiles);
     if (ok) {
@@ -149,16 +159,28 @@ export default function App() {
             projects={projects}
             onSelect={handleSelectProject}
             onCreateNew={() => setScreen('new-project')}
+            onEdit={(p) => { setActiveProject(p); setScreen('edit-project'); }}
             onDelete={handleDeleteProject}
             error={error}
           />
         );
       case 'new-project':
         return (
-          <NewProjectScreen
+          <ProjectFormScreen
             onSubmit={handleCreateProject}
             onBack={() => setScreen('projects')}
             error={error}
+          />
+        );
+      case 'edit-project':
+        return (
+          <ProjectFormScreen
+            key={activeProject?.id}
+            initialData={activeProject}
+            onSubmit={(data) => handleUpdateProject(activeProject.id, data)}
+            onBack={() => setScreen('projects')}
+            error={error}
+            isEdit={true}
           />
         );
       case 'task':
@@ -321,7 +343,7 @@ function DeleteConfirmDialog({ project, onCancel, onConfirm }) {
   );
 }
 
-function ProjectsScreen({ projects, onSelect, onCreateNew, onDelete, error }) {
+function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, error }) {
   const [deleteTarget, setDeleteTarget] = React.useState(null);
 
   const handleDeleteConfirm = (deleteFiles) => {
@@ -351,26 +373,44 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onDelete, error }) {
         {projects.map((p) => (
           <div
             key={p.id}
-            className={`project-card ${p.is_finished ? 'finished' : ''}`}
-            onClick={() => !p.is_finished && onSelect(p)}
-            style={{ position: 'relative' }}
+            className={`project-card ${p.is_finished ? 'finished' : ''} ${p.init_error ? 'error' : ''}`}
+            onClick={() => !p.is_finished && !p.init_error && onSelect(p)}
+            style={{ position: 'relative', border: p.init_error ? '1px solid #ff4d4f' : '' }}
           >
-            {/* Delete button – stops propagation so it doesn't open the project */}
-            <button
-              className="project-delete-btn"
-              title="מחק פרויקט"
-              onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
-            >
-              🗑️
-            </button>
+            {/* Action buttons area */}
+            <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px' }}>
+              <button
+                className="project-action-btn edit-btn"
+                title="ערוך פרויקט"
+                onClick={(e) => { e.stopPropagation(); onEdit(p); }}
+              >
+                ✏️
+              </button>
+              <button
+                className="project-action-btn delete-btn"
+                title="מחק פרויקט"
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+              >
+                🗑️
+              </button>
+            </div>
+            
             <h3>{p.name}</h3>
             <div className="project-meta">
               <span>חוקר אחראי: {p.owner}</span>
-              <span>{p.is_finished ? 'המחקר הושלם' : `משימות נותרות: ${p.rows_remaining}`}</span>
+              {p.init_error ? (
+                <span style={{ color: '#ff4d4f', fontWeight: 'bold', marginTop: '4px', display: 'block' }}>
+                  ⚠️ שגיאת גישה לקישור (פרטי / לא חוקי)
+                </span>
+              ) : (
+                <span>{p.is_finished ? 'המחקר הושלם' : `משימות נותרות: ${p.rows_remaining || 0}`}</span>
+              )}
             </div>
-            <span className={`badge ${p.is_finished ? 'badge-done' : `badge-${p.workflow_type.toLowerCase()}`}`}>
-              {p.is_finished ? '✓ הושלם' : `תהליך ${p.workflow_type}`}
-            </span>
+            {!p.init_error && (
+              <span className={`badge ${p.is_finished ? 'badge-done' : `badge-${p.workflow_type.toLowerCase()}`}`}>
+                {p.is_finished ? '✓ הושלם' : `תהליך ${p.workflow_type}`}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -565,19 +605,30 @@ function WorkflowBuilder({ steps, onChange }) {
 // NewProjectScreen – now with full workflow builder
 // ---------------------------------------------------------------------------
 
-function NewProjectScreen({ onSubmit, onBack, error }) {
-  const [name, setName] = useState('');
-  const [workflowMode, setWorkflowMode] = useState('preset'); // 'preset' | 'custom'
-  const [workflow, setWorkflow] = useState('A');
-  const [contentType, setContentType] = useState('both');
-  const [customSteps, setCustomSteps] = useState([]);
+// ---------------------------------------------------------------------------
+// ProjectFormScreen – handles both creating and editing projects
+// ---------------------------------------------------------------------------
+
+function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit = false }) {
+  const [name, setName] = useState(initialData?.name || '');
+  const [workflowMode, setWorkflowMode] = useState(initialData?.custom_schema ? 'custom' : 'preset');
+  const [workflow, setWorkflow] = useState(initialData?.workflow_type || 'A');
+  const [contentType, setContentType] = useState(initialData?.custom_schema?.content_type || 'both');
+  const [customSteps, setCustomSteps] = useState(initialData?.custom_schema?.steps || []);
 
   // CSV source picker
-  const [sourceType, setSourceType] = useState('local'); // 'local' | 'gdrive' | 's3'
-  const [source, setSource] = useState('');
+  const [source, setSource] = useState(initialData?.source_csv || '');
+  const [sourceType, setSourceType] = useState(() => {
+    if (!initialData?.source_csv) return 'local';
+    const s = initialData.source_csv;
+    if (s.startsWith('s3://')) return 's3';
+    if (s.includes('drive.google.com') || s.includes('docs.google.com')) return 'gdrive';
+    return 'local';
+  });
+  
   const [uploading, setUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(null); // null | 'ok' | 'error'
-  const [uploadMsg, setUploadMsg] = useState('');
+  const [uploadStatus, setUploadStatus] = useState(null); 
+  const [uploadMsg, setUploadMsg] = useState(initialData?.source_csv ? '✓ קובץ קיים' : '');
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -611,11 +662,20 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
   };
 
   const handleSubmit = () => {
+    const payload = { 
+        name, 
+        source_csv: source,
+        owner: initialData?.owner // preserve owner on edit
+    };
+    
     if (workflowMode === 'custom') {
-      onSubmit({ name, workflow_type: 'A', source_csv: source, custom_schema: { steps: customSteps, content_type: contentType } });
+      payload.workflow_type = 'CUSTOM';
+      payload.custom_schema = { steps: customSteps, content_type: contentType };
     } else {
-      onSubmit({ name, workflow_type: workflow, source_csv: source });
+      payload.workflow_type = workflow;
     }
+    
+    onSubmit(payload);
   };
 
   return (
@@ -625,7 +685,7 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
           <button className="btn btn-secondary" style={{ padding: '8px 14px', minWidth: 'auto' }} onClick={onBack}>
             ← חזור
           </button>
-          <h2 style={{ margin: 0 }}>הקמת פרויקט מחקרי חדש</h2>
+          <h2 style={{ margin: 0 }}>{isEdit ? 'עריכת פרויקט' : 'הקמת פרויקט מחקרי חדש'}</h2>
         </div>
         {error && <div className="alert alert-error">{error}</div>}
 
@@ -653,7 +713,7 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
                 key={st.value}
                 className={`preset-option ${sourceType === st.value ? 'selected' : ''}`}
                 style={{ flexDirection: 'column', justifyContent: 'center', textAlign: 'center', padding: '12px 8px', gap: '4px' }}
-                onClick={() => { setSourceType(st.value); setSource(''); setUploadStatus(null); setUploadMsg(''); }}
+                onClick={() => { setSourceType(st.value); setSource(isEdit && st.value === 'local' ? initialData.source_csv : ''); setUploadStatus(null); setUploadMsg(''); }}
               >
                 <span style={{ fontSize: '1.3rem' }}>{st.icon}</span>
                 <strong style={{ fontSize: '0.83rem' }}>{st.label}</strong>
@@ -677,7 +737,7 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
                   fontSize: '0.9rem',
                 }}
               >
-                {uploading ? <><span className="spinner" /><span>מעלה...</span></> : <><span>📂</span><span>{source ? 'עלה בהצלחה – לחץ לבחירת קובץ אחר' : 'לחץ לבחירת קובץ CSV'}</span></>}
+                {uploading ? <><span className="spinner" /><span>מעלה...</span></> : <><span>📂</span><span>{source ? `✓ קובץ נבחר: ${source.split('/').pop()}` : 'לחץ לבחירת קובץ CSV'}</span></>}
               </label>
               <input
                 id="csv-upload"
@@ -688,7 +748,7 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
                 disabled={uploading}
               />
               {uploadMsg && (
-                <p className={`field-hint`} style={{ marginTop: '8px', color: uploadStatus === 'ok' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                <p className={`field-hint`} style={{ marginTop: '8px', color: (uploadStatus === 'ok' || isEdit) ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
                   {uploadMsg}
                 </p>
               )}
@@ -812,7 +872,7 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
         <div className="btn-row">
           <button className="btn btn-secondary" onClick={onBack}>ביטול</button>
           <button className="btn btn-primary" onClick={handleSubmit}>
-            יצירת פרויקט
+            {isEdit ? 'שמור שינויים' : 'יצירת פרויקט'}
           </button>
         </div>
       </div>
