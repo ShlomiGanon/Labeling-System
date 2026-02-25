@@ -344,6 +344,21 @@ function NewProjectScreen({ onSubmit, onBack, error }) {
 }
 
 function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
+  const [config, setConfig] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+
+  useEffect(() => {
+    if (project && !isFinished) {
+      async function fetchConfig() {
+        setLoadingConfig(true);
+        const { ok, data } = await api.getProjectConfig(project.id);
+        if (ok) setConfig(data);
+        setLoadingConfig(false);
+      }
+      fetchConfig();
+    }
+  }, [project, isFinished]);
+
   if (isFinished || !task) {
     return (
       <section className="screen active">
@@ -383,9 +398,20 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
         {error && <div className="alert alert-error">{error}</div>}
 
         <div id="task-fields">
-          {project.workflow_type === 'A' && <WorkflowA onSubmit={onSubmit} />}
-          {project.workflow_type === 'B' && <WorkflowB onSubmit={onSubmit} />}
-          {project.workflow_type === 'C' && <WorkflowC onSubmit={onSubmit} />}
+          {loadingConfig ? (
+            <div className="loading-state">
+              <div className="spinner"></div>
+              <span>טוען הגדרות תהליך...</span>
+            </div>
+          ) : config ? (
+            <DynamicWorkflow 
+              key={task.row_id} 
+              config={config} 
+              onSubmit={onSubmit} 
+            />
+          ) : (
+            <div className="alert alert-error">שגיאה בטעינת הגדרות התהליך</div>
+          )}
         </div>
       </div>
     </section>
@@ -393,158 +419,143 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
 }
 
 // ---------------------------------------------------------------------------
-// Workflow Specific Components
+// Dynamic Workflow Engine
 // ---------------------------------------------------------------------------
 
-function WorkflowA({ onSubmit }) {
-  const [selected, setSelected] = useState('');
-  const choices = [
-    { value: 'Independent', label: 'עצמאי – התמונה מספקת את המידע הנדרש' },
-    { value: 'Context-Dependent', label: 'תלוי הקשר – נדרש הטקסט להבנה' },
-    { value: 'Noise', label: 'רעש – אין קשר לוגי בין התמונה לטקסט' },
-  ];
+/**
+ * Renders any workflow dynamically based on the schema provided by the backend.
+ * Handles multi-step navigation and field validation automatically.
+ */
+function DynamicWorkflow({ config, onSubmit }) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [formData, setFormData] = useState({});
 
-  return (
-    <div>
-      <h2>ניתוח הקשר בין תמונה לטקסט</h2>
-      <div className="choice-group">
-        {choices.map((c) => (
-          <button
-            key={c.value}
-            className={`choice-btn ${selected === c.value ? 'selected' : ''}`}
-            onClick={() => setSelected(c.value)}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
-      <div className="btn-row">
-        <button className="btn btn-primary" onClick={() => selected && onSubmit({ relationship: selected })}>
-          אישור ושליחה
-        </button>
-      </div>
-    </div>
-  );
-}
+  if (!config || !config.steps) return null;
 
-function WorkflowB({ onSubmit }) {
-  const [step, setStep] = useState(1);
-  const [data, setData] = useState({ entity_name: '', entity_type: '', topic: '', sentiment: '' });
+  const currentStep = config.steps[stepIndex];
+  const isLastStep = stepIndex === config.steps.length - 1;
 
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return (
-          <div>
-            <h2>שלב 1 – זיהוי ישות מרכזית</h2>
-            <div className="field-group">
-              <label>שם הישות</label>
-              <input
-                type="text"
-                value={data.entity_name}
-                onChange={(e) => setData({ ...data, entity_name: e.target.value })}
-                placeholder="למשל: בנק ישראל"
-              />
-            </div>
-            <div className="field-group">
-              <label>סוג הישות</label>
-              <div className="choice-group">
-                {['Person', 'Org', 'Place'].map((t) => (
-                  <button
-                    key={t}
-                    className={`choice-btn ${data.entity_type === t ? 'selected' : ''}`}
-                    onClick={() => setData({ ...data, entity_type: t })}
-                  >
-                    {t === 'Person' ? '👤 אדם' : t === 'Org' ? '🏢 ארגון' : '📍 מקום'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button className="btn btn-primary" onClick={() => data.entity_name && data.entity_type && setStep(2)}>הבא ←</button>
-          </div>
-        );
-      case 2:
-        return (
-          <div>
-            <h2>שלב 2 – קביעת נושא הטקסט</h2>
-            <div className="field-group">
-              <label>הנושא העיקרי</label>
-              <input
-                type="text"
-                value={data.topic}
-                onChange={(e) => setData({ ...data, topic: e.target.value })}
-                placeholder="למשל: שינויים בריבית במשק"
-              />
-            </div>
-            <div className="btn-row">
-              <button className="btn btn-secondary" onClick={() => setStep(1)}>חזור</button>
-              <button className="btn btn-primary" onClick={() => data.topic && setStep(3)}>הבא ←</button>
-            </div>
-          </div>
-        );
-      case 3:
-        return (
-          <div>
-            <h2>שלב 3 – הערכת סנטימנט</h2>
-            <div className="choice-group">
-              {['Good', 'Bad', 'Trust', 'Fear', 'Anger'].map((s) => (
-                <button
-                  key={s}
-                  className={`choice-btn ${data.sentiment === s ? 'selected' : ''}`}
-                  onClick={() => setData({ ...data, sentiment: s })}
-                >
-                  {s === 'Good' ? '😊 חיובי' : s === 'Bad' ? '😠 שלילי' : s}
-                </button>
-              ))}
-            </div>
-            <div className="btn-row">
-              <button className="btn btn-secondary" onClick={() => setStep(2)}>חזור</button>
-              <button className="btn btn-primary" onClick={() => data.sentiment && onSubmit(data)}>סיום ושליחה</button>
-            </div>
-          </div>
-        );
-      default:
-        return null;
+  const handleFieldChange = (fieldId, value) => {
+    setFormData(prev => ({ ...prev, [fieldId]: value }));
+  };
+
+  // Ensure all fields in the current step are filled before proceeding
+  const canGoNext = currentStep.fields.every(f => {
+    const val = formData[f.id];
+    return val !== undefined && val !== null && val.toString().trim() !== '';
+  });
+
+  const handleAction = () => {
+    if (isLastStep) {
+      onSubmit(formData);
+    } else {
+      setStepIndex(stepIndex + 1);
     }
   };
 
   return (
-    <div>
-      <div className="steps-indicator">
-        {[1, 2, 3].map((s) => (
-          <React.Fragment key={s}>
-            <div className={`step-dot ${step === s ? 'active' : step > s ? 'done' : ''}`}>
-              {step > s ? '✓' : s}
-            </div>
-            {s < 3 && <div className="step-line"></div>}
-          </React.Fragment>
+    <div className="dynamic-workflow">
+      {/* Progress horizontal line for multi-step tasks */}
+      {config.steps.length > 1 && (
+        <div className="steps-indicator">
+          {config.steps.map((s, idx) => (
+            <React.Fragment key={idx}>
+              <div className={`step-dot ${stepIndex === idx ? 'active' : stepIndex > idx ? 'done' : ''}`}>
+                {stepIndex > idx ? '✓' : idx + 1}
+              </div>
+              {idx < config.steps.length - 1 && <div className="step-line"></div>}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+
+      <h2>{currentStep.title}</h2>
+      
+      <div className="step-fields">
+        {currentStep.fields.map(field => (
+          <DynamicField 
+            key={field.id} 
+            field={field} 
+            value={formData[field.id] || ''} 
+            onChange={val => handleFieldChange(field.id, val)} 
+          />
         ))}
       </div>
-      {renderStep()}
+
+      <div className="btn-row">
+        {stepIndex > 0 && (
+          <button className="btn btn-secondary" onClick={() => setStepIndex(stepIndex - 1)}>
+            חזור
+          </button>
+        )}
+        <button 
+          className="btn btn-primary" 
+          onClick={handleAction} 
+          disabled={!canGoNext}
+        >
+          {isLastStep ? 'סיום ושליחה' : 'הבא ←'}
+        </button>
+      </div>
     </div>
   );
 }
 
-function WorkflowC({ onSubmit }) {
-  const [caption, setCaption] = useState('');
+/**
+ * A generic field renderer that picks the right component based on the schema.
+ */
+function DynamicField({ field, value, onChange }) {
+  const renderInput = () => {
+    switch (field.component) {
+      case 'input_text':
+        return (
+          <input 
+            type="text" 
+            value={value} 
+            onChange={e => onChange(e.target.value)} 
+            placeholder={field.placeholder} 
+          />
+        );
+      case 'textarea':
+        return (
+          <textarea 
+            value={value} 
+            onChange={e => onChange(e.target.value)} 
+            placeholder={field.placeholder} 
+            rows={4}
+          />
+        );
+      case 'button_group':
+        return (
+          <div className="choice-group">
+            {field.options.map(opt => (
+              <button
+                key={opt}
+                className={`choice-btn ${value === opt ? 'selected' : ''}`}
+                onClick={() => onChange(opt)}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        );
+      case 'select':
+        return (
+          <select value={value} onChange={e => onChange(e.target.value)}>
+            <option value="">-- בחר אפשרות --</option>
+            {field.options.map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        );
+      default:
+        return <div className="alert alert-error">Unknown Component: {field.component}</div>;
+    }
+  };
 
   return (
-    <div>
-      <h2>כתיבת כיתוב תיאורי (Caption)</h2>
-      <p className="subtitle">תאר את התמונה באופן אקדמי ומדויק עבור קהל יעד מגוון.</p>
-      <div className="field-group">
-        <label>הכיתוב המוצע</label>
-        <textarea
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          placeholder="תאר את הפרטים המופיעים בתמונה..."
-        />
-      </div>
-      <div className="btn-row">
-        <button className="btn btn-primary" onClick={() => caption && onSubmit({ caption })}>
-          שלח כיתוב
-        </button>
-      </div>
+    <div className="field-group">
+      <label>{field.label}</label>
+      {renderInput()}
     </div>
   );
 }

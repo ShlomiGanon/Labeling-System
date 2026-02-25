@@ -286,6 +286,29 @@ def get_task(project_id: str):
     })
 
 
+@api_bp.route("/projects/<project_id>/config", methods=["GET"])
+def get_project_config(project_id: str):
+    """
+    Returns the UI schema/configuration for the project's workflow.
+    """
+    auth_check = require_login()
+    if auth_check: return auth_check
+
+    projects = load_projects()
+    project  = next((p for p in projects if p["id"] == project_id), None)
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    from CORE.models import WORKFLOW_SCHEMAS, WorkflowType
+    wtype = WorkflowType(project["workflow_type"])
+    schema = WORKFLOW_SCHEMAS.get(wtype)
+
+    if not schema:
+        return jsonify({"error": "Schema not found"}), 404
+
+    return jsonify(schema.to_dict())
+
+
 @api_bp.route("/projects/<project_id>/submit", methods=["POST"])
 def submit_task(project_id: str):
     """

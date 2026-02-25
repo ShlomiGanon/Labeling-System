@@ -70,3 +70,6 @@ export const getTask = (projectId) => get(`/api/projects/${projectId}/task`)
 /** Send the finished label back to the server to be saved. */
 export const submitLabel = (projectId, payload) =>
   post(`/api/projects/${projectId}/submit`, payload)
+
+/** Get the UI schema/configuration for a project's workflow. */
+export const getProjectConfig = (projectId) => get(`/api/projects/${projectId}/config`)

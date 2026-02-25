@@ -1,8 +1,9 @@
 """
 models.py
 ---------
-This file defines the core data structures and enums used throughout the Labeling System.
-It uses Python's dataclasses for data storage and Enum for categorical values.
+This file defines the core data structures, enums, and UI schemas used throughout 
+the Labeling System. It uses a configuration-driven approach where the UI 
+structure for each workflow is defined here and rendered dynamically by the frontend.
 """
 
 from dataclasses import dataclass, field
@@ -38,6 +39,148 @@ class ImageTextRelationship(Enum):
     INDEPENDENT = "Independent"
     CONTEXT_DEPENDENT = "Context-Dependent"
     NOISE = "Noise"
+
+# ---------------------------------------------------------------------------
+# UI Schema Definitions for Modular Interface
+# ---------------------------------------------------------------------------
+
+class UIComponent(Enum):
+    """Types of UI components the frontend can render."""
+    INPUT_TEXT = "input_text"
+    TEXTAREA = "textarea"
+    BUTTON_GROUP = "button_group"
+    SELECT = "select"
+
+@dataclass
+class FieldSchema:
+    """Defines a single input field in a labeling task."""
+    id: str
+    label: str
+    component: UIComponent
+    placeholder: str = ""
+    options: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "component": self.component.value,
+            "placeholder": self.placeholder,
+            "options": self.options
+        }
+
+@dataclass
+class StepSchema:
+    """Defines a step in a multi-step workflow (like Workflow B)."""
+    title: str
+    fields: list[FieldSchema]
+
+    def to_dict(self) -> dict:
+        return {
+            "title": self.title,
+            "fields": [f.to_dict() for f in self.fields]
+        }
+
+@dataclass
+class WorkflowSchema:
+    """The full UI definition for a specific workflow type."""
+    workflow_type: WorkflowType
+    steps: list[StepSchema]
+
+    def to_dict(self) -> dict:
+        return {
+            "workflow_type": self.workflow_type.value,
+            "steps": [s.to_dict() for s in self.steps]
+        }
+
+# ---------------------------------------------------------------------------
+# Pre-defined Workflow Schemas
+# ---------------------------------------------------------------------------
+
+WORKFLOW_A_SCHEMA = WorkflowSchema(
+    workflow_type=WorkflowType.IMAGE_TEXT_RELATIONSHIP,
+    steps=[
+        StepSchema(
+            title="ניתוח הקשר בין תמונה לטקסט",
+            fields=[
+                FieldSchema(
+                    id="relationship",
+                    label="מהו סוג הקשר?",
+                    component=UIComponent.BUTTON_GROUP,
+                    options=[r.value for r in ImageTextRelationship]
+                )
+            ]
+        )
+    ]
+)
+
+WORKFLOW_B_SCHEMA = WorkflowSchema(
+    workflow_type=WorkflowType.ENTITY_SENTIMENT,
+    steps=[
+        StepSchema(
+            title="שלב 1 – זיהוי ישות מרכזית",
+            fields=[
+                FieldSchema(
+                    id="entity_name",
+                    label="שם הישות",
+                    component=UIComponent.INPUT_TEXT,
+                    placeholder="למשל: בנק ישראל"
+                ),
+                FieldSchema(
+                    id="entity_type",
+                    label="סוג הישות",
+                    component=UIComponent.BUTTON_GROUP,
+                    options=[t.value for t in EntityType]
+                )
+            ]
+        ),
+        StepSchema(
+            title="שלב 2 – קביעת נושא הטקסט",
+            fields=[
+                FieldSchema(
+                    id="topic",
+                    label="הנושא העיקרי",
+                    component=UIComponent.INPUT_TEXT,
+                    placeholder="למשל: שינויים בריבית במשק"
+                )
+            ]
+        ),
+        StepSchema(
+            title="שלב 3 – הערכת סנטימנט",
+            fields=[
+                FieldSchema(
+                    id="sentiment",
+                    label="סנטימנט",
+                    component=UIComponent.BUTTON_GROUP,
+                    options=[s.value for s in Sentiment]
+                )
+            ]
+        )
+    ]
+)
+
+WORKFLOW_C_SCHEMA = WorkflowSchema(
+    workflow_type=WorkflowType.GOLDEN_CAPTION,
+    steps=[
+        StepSchema(
+            title="כתיבת כיתוב תיאורי (Caption)",
+            fields=[
+                FieldSchema(
+                    id="caption",
+                    label="הכיתוב המוצע",
+                    component=UIComponent.TEXTAREA,
+                    placeholder="תאר את הפרטים המופיעים בתמונה..."
+                )
+            ]
+        )
+    ]
+)
+
+WORKFLOW_SCHEMAS = {
+    WorkflowType.IMAGE_TEXT_RELATIONSHIP: WORKFLOW_A_SCHEMA,
+    WorkflowType.ENTITY_SENTIMENT: WORKFLOW_B_SCHEMA,
+    WorkflowType.GOLDEN_CAPTION: WORKFLOW_C_SCHEMA
+}
 
 # ---------------------------------------------------------------------------
 # Data Models
