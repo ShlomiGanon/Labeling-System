@@ -40,6 +40,14 @@
         ],
         "content_type": "image"
       }
+    },
+    {
+      "id": "a62d3a59-ee01-46e1-8412-4ae3a59ef177",
+      "name": "ששש",
+      "owner": "שלומי",
+      "workflow_type": "C",
+      "source_csv": "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view?usp=sharing",
+      "master_csv": "backend/data/master_ששש.csv"
     }
   ]
 }

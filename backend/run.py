@@ -7,21 +7,30 @@ Backend-specific entry point that provides a clear startup message.
 import os
 import sys
 
-# Ensure the backend root and its children are in the system path.
-# This allows 'import CORE.server' and 'import API.api' to work.
+# Ensures the current backend directory is at the front of the Python system path.
+# This makes internal imports like 'CORE' and 'API' discoverable by the interpreter.
+# Returns the absolute path of the directory containing this script.
+# Returns None (modifies sys.path in-place).
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 if BACKEND_DIR not in sys.path:
+    # Inserts the backend root as the first searching priority in the path list.
+    # Returns None.
     sys.path.insert(0, BACKEND_DIR)
 
-# CORE.server handles the initialization of the Flask 'app' object.
+# Retrieves the global Flask application instance from the server core.
+# Returns a Flask app object.
 from CORE.server import app
-# API.api contains the route definitions.
+# Retrieves the API blueprint containing all route definitions.
+# Returns a Flask Blueprint object.
 from API.api import api_bp
 
-# Register the routes.
+# Registers the API routes under the '/api' prefix to distinguish them from frontend routes.
+# Returns None.
 app.register_blueprint(api_bp, url_prefix="/api")
 
 if __name__ == "__main__":
+    # Outputs a visual separator and status messages to the console during startup.
+    # Returns None.
     print("-" * 60)
     print(" [BACKEND] Labeling System is starting...")
     print(" [STATUS]  Flask Server: ACTIVATED")
@@ -30,5 +39,6 @@ if __name__ == "__main__":
     print(" [READY]   Server is listening on: http://localhost:5000")
     print("-" * 60)
     
-    # Run the server.
+    # Launches the development server with hot-reloading enabled.
+    # Returns an ongoing blocking process.
     app.run(debug=True, host="0.0.0.0", port=5000)

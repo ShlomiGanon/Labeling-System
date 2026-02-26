@@ -26,22 +26,16 @@ _pending_entity_labels: Dict[Tuple[str, str], EntitySentimentLabel] = {}
 # Workflow A: Image-Text Relationship
 # ===========================================================================
 
+# Processes a one-step image-text relationship label by creating a label object and submitting it to the engine.
+# This workflow is simple and does not require multi-step state management.
+# Returns True if the label was successfully persisted, False otherwise.
 def process_image_text_relationship(engine: LabelingEngine, user_name: str, row_id: str, relationship: str) -> bool:
-    """
-    Workflow A: Processes a simple one-step image-text relationship label.
-
-    Args:
-        engine (LabelingEngine): The engine to handle data persistence.
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row being labeled.
-        relationship (str): The chosen relationship type.
-
-    Returns:
-        bool: True if the label was successfully saved.
-    """
+    # Initializes a new ImageTextLabel object with the provided data.
+    # Returns an ImageTextLabel instance.
     label = ImageTextLabel(row_id=row_id, labeler_name=user_name, relationship=relationship)
     
-    # Request the engine to persist the completed label.
+    # Submits the finalized label to the engine for filesystem persistence.
+    # Returns True if successful, False otherwise.
     return engine.submit_label(user_name, label)
 
 
@@ -49,78 +43,64 @@ def process_image_text_relationship(engine: LabelingEngine, user_name: str, row_
 # Workflow B: Entity & Sentiment (Multi-Step Process)
 # ===========================================================================
 
+# Initiates the first step of the multi-part Entity-Sentiment workflow.
+# It creates a label object and caches it in memory until subsequent steps are completed.
+# Returns the newly created and partially populated EntitySentimentLabel object.
 def process_entity_identification(user_name: str, row_id: str, entity_name: str, entity_type: str) -> EntitySentimentLabel:
-    """
-    Step 1: Initiates a new sentiment label by identifying the primary entity.
-    The label is stored in memory and not yet saved to disk.
-
-    Args:
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        entity_name (str): Name identified in the text/image.
-        entity_type (str): Category of the entity (Person, Org, Place).
-
-    Returns:
-        EntitySentimentLabel: The initialized label object.
-    """
+    # Initializes a new EntitySentimentLabel object for the current user and row.
+    # Returns an EntitySentimentLabel instance.
     label = EntitySentimentLabel(row_id=row_id, labeler_name=user_name)
+    # Sets the entity name and type on the label object.
+    # Returns None.
     label.set_entity(entity_name, entity_type)
 
-    # Store in memory using a composite key of user and row.
+    # Caches the partial label in a global dictionary to maintain state between API calls.
+    # Returns None.
     _pending_entity_labels[(user_name, row_id)] = label
     return label
 
+# Updates an existing pending label with a topic assignment, completing the second step of the workflow.
+# It retrieves the label from the in-memory cache using a composite key of user and row.
+# Returns the updated EntitySentimentLabel object.
 def process_topic_assignment(user_name: str, row_id: str, topic: str) -> EntitySentimentLabel:
-    """
-    Step 2: Assigns a topic to the label initiated in Step 1.
-
-    Args:
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        topic (str): The topic relevance.
-
-    Returns:
-        EntitySentimentLabel: The updated label object.
-
-    Raises:
-        KeyError: If Step 1 was not performed for this user/row.
-    """
+    # Generates a composite key from the username and row ID for cache lookup.
+    # Returns a tuple.
     key = (user_name, row_id)
     if key not in _pending_entity_labels:
+        # Raises an error if the user attempts this step without completing the first one.
+        # Returns a KeyError.
         raise KeyError("Workflow Error: You must identify an entity (Step 1) before assigning a topic.")
 
     label = _pending_entity_labels[key]
+    # Sets the topic for the entity identified in the previous step.
+    # Returns None.
     label.set_topic(topic)
     return label
 
+# Finalizes the multi-step Entity-Sentiment workflow by setting the sentiment and submitting to the engine.
+# It also cleans up the in-memory cache upon a successful save to prevent memory leaks.
+# Returns True if the full label was successfully persisted, False otherwise.
 def process_entity_sentiment(engine: LabelingEngine, user_name: str, row_id: str, sentiment: str) -> bool:
-    """
-    Step 3: Finalizes the workflow by setting the sentiment and persisting the full label.
-
-    Args:
-        engine (LabelingEngine): The engine to handle data persistence.
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        sentiment (str): The sentiment choice.
-
-    Returns:
-        bool: True if the full multi-step label was saved successfully.
-
-    Raises:
-        KeyError: If prior steps were skipped.
-    """
+    # Generates a lookup key for the pending label cache.
+    # Returns a tuple.
     key = (user_name, row_id)
     if key not in _pending_entity_labels:
+        # Raises an error if mandatory previous steps are missing.
+        # Returns a KeyError.
         raise KeyError("Workflow Error: You must complete identification and topic assignment before sentiment.")
 
     label = _pending_entity_labels[key]
+    # Sets the final sentiment value and marks the label as complete.
+    # Returns None.
     label.set_sentiment(sentiment)
 
-    # All three steps are complete. Persist the data via the engine.
+    # Submits the fully completed multi-step label to the labeling engine.
+    # Returns True if successful, False otherwise.
     success = engine.submit_label(user_name, label)
 
-    # Cleanup: If saved successfully, remove from memory to free space and prevent state leaks.
     if success:
+        # Removes the completed label from the pending cache to release memory.
+        # Returns None.
         del _pending_entity_labels[key]
     
     return success
@@ -130,20 +110,15 @@ def process_entity_sentiment(engine: LabelingEngine, user_name: str, row_id: str
 # Workflow C: Golden Caption
 # ===========================================================================
 
+# Handles the one-step captioning workflow by creating a CaptionLabel and persisting it.
+# This workflow is used for tasks that only require a descriptive text input for an image.
+# Returns True if the caption was successfully saved, False otherwise.
 def process_caption(engine: LabelingEngine, user_name: str, row_id: str, caption: str) -> bool:
-    """
-    Workflow C: Processes a simple one-step caption/description label.
-
-    Args:
-        engine (LabelingEngine): The engine to handle data persistence.
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        caption (str): The user-written description.
-
-    Returns:
-        bool: True if the caption was saved successfully.
-    """
+    # Initializes a new CaptionLabel object with the user-provided text.
+    # Returns a CaptionLabel instance.
     label = CaptionLabel(row_id=row_id, labeler_name=user_name, caption=caption)
+    # Delegates the persistence of the caption label to the engine.
+    # Returns True or False.
     return engine.submit_label(user_name, label)
 
 
@@ -151,151 +126,16 @@ def process_caption(engine: LabelingEngine, user_name: str, row_id: str, caption
 # Custom Workflow: Generic field submission
 # ===========================================================================
 
+# Processes a custom workflow result by packaging arbitrary field data into a CustomLabel object.
+# This allows the system to support new, dynamically defined workflows without backend changes.
+# Returns True if the custom label data was successfully persisted, False otherwise.
 def process_custom_workflow(engine: LabelingEngine, user_name: str, row_id: str, fields: dict) -> bool:
-    """
-    Custom Workflow: Saves any arbitrary set of field values to the master CSV.
-    Works for any user-defined workflow schema without requiring code changes.
-
-    Args:
-        engine (LabelingEngine): The engine to handle data persistence.
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row being labeled.
-        fields (dict): All field id -> value pairs collected from the frontend form.
-
-    Returns:
-        bool: True if the custom label was saved successfully.
-    """
-    # Strip out the row_id from fields if the frontend accidentally included it
+    # Removes the row_id from the fields dictionary if it was redundantly included by the frontend.
+    # Returns the value associated with 'row_id' or None.
     fields.pop("row_id", None)
+    # Initializes a CustomLabel with metadata and the dynamic fields dictionary.
+    # Returns a CustomLabel instance.
     label = CustomLabel(row_id=row_id, labeler_name=user_name, fields=fields)
-    return engine.submit_label(user_name, label)
-
-
-# Internal cache for labels that are still in progress.
-# Used for Workflow B which requires 3 separate user interactions.
-# Key: (username, row_id) - uniquely identifies a user's work session on a row.
-_pending_entity_labels: Dict[Tuple[str, str], EntitySentimentLabel] = {}
-
-# ===========================================================================
-# Workflow A: Image-Text Relationship
-# ===========================================================================
-
-def process_image_text_relationship(engine: LabelingEngine, user_name: str, row_id: str, relationship: str) -> bool:
-    """
-    Workflow A: Processes a simple one-step image-text relationship label.
-
-    Args:
-        engine (LabelingEngine): The engine to handle data persistence.
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row being labeled.
-        relationship (str): The chosen relationship type.
-
-    Returns:
-        bool: True if the label was successfully saved.
-    """
-    label = ImageTextLabel(row_id=row_id, labeler_name=user_name, relationship=relationship)
-    
-    # Request the engine to persist the completed label.
-    return engine.submit_label(user_name, label)
-
-
-# ===========================================================================
-# Workflow B: Entity & Sentiment (Multi-Step Process)
-# ===========================================================================
-
-def process_entity_identification(user_name: str, row_id: str, entity_name: str, entity_type: str) -> EntitySentimentLabel:
-    """
-    Step 1: Initiates a new sentiment label by identifying the primary entity.
-    The label is stored in memory and not yet saved to disk.
-
-    Args:
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        entity_name (str): Name identified in the text/image.
-        entity_type (str): Category of the entity (Person, Org, Place).
-
-    Returns:
-        EntitySentimentLabel: The initialized label object.
-    """
-    label = EntitySentimentLabel(row_id=row_id, labeler_name=user_name)
-    label.set_entity(entity_name, entity_type)
-
-    # Store in memory using a composite key of user and row.
-    _pending_entity_labels[(user_name, row_id)] = label
-    return label
-
-def process_topic_assignment(user_name: str, row_id: str, topic: str) -> EntitySentimentLabel:
-    """
-    Step 2: Assigns a topic to the label initiated in Step 1.
-
-    Args:
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        topic (str): The topic relevance.
-
-    Returns:
-        EntitySentimentLabel: The updated label object.
-
-    Raises:
-        KeyError: If Step 1 was not performed for this user/row.
-    """
-    key = (user_name, row_id)
-    if key not in _pending_entity_labels:
-        raise KeyError("Workflow Error: You must identify an entity (Step 1) before assigning a topic.")
-
-    label = _pending_entity_labels[key]
-    label.set_topic(topic)
-    return label
-
-def process_entity_sentiment(engine: LabelingEngine, user_name: str, row_id: str, sentiment: str) -> bool:
-    """
-    Step 3: Finalizes the workflow by setting the sentiment and persisting the full label.
-
-    Args:
-        engine (LabelingEngine): The engine to handle data persistence.
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        sentiment (str): The sentiment choice.
-
-    Returns:
-        bool: True if the full multi-step label was saved successfully.
-
-    Raises:
-        KeyError: If prior steps were skipped.
-    """
-    key = (user_name, row_id)
-    if key not in _pending_entity_labels:
-        raise KeyError("Workflow Error: You must complete identification and topic assignment before sentiment.")
-
-    label = _pending_entity_labels[key]
-    label.set_sentiment(sentiment)
-
-    # All three steps are complete. Persist the data via the engine.
-    success = engine.submit_label(user_name, label)
-
-    # Cleanup: If saved successfully, remove from memory to free space and prevent state leaks.
-    if success:
-        del _pending_entity_labels[key]
-    
-    return success
-
-
-# ===========================================================================
-# Workflow C: Golden Caption
-# ===========================================================================
-
-def process_caption(engine: LabelingEngine, user_name: str, row_id: str, caption: str) -> bool:
-    """
-    Workflow C: Processes a simple one-step caption/description label.
-
-    Args:
-        engine (LabelingEngine): The engine to handle data persistence.
-        user_name (str): Name of the labeler.
-        row_id (str): ID of the row.
-        caption (str): The user-written description.
-
-    Returns:
-        bool: True if the caption was saved successfully.
-    """
-    label = CaptionLabel(row_id=row_id, labeler_name=user_name, caption=caption)
+    # Submits the custom label to the engine for storage in the master results file.
+    # Returns True or False.
     return engine.submit_label(user_name, label)
