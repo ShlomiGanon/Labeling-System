@@ -26,6 +26,9 @@ if CORE_DIR not in sys.path:
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
+# Configuration for Image Loading Bar in Frontend
+SHOW_IMAGE_LOADING_BAR = True
+
 from labeling_engine import LabelingEngine
 from storage import LocalStorage, RemoteStorage
 

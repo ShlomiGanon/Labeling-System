@@ -883,6 +883,13 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
 function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
   const [config, setConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  useEffect(() => {
+    if (task) {
+        setImageLoaded(false);
+    }
+  }, [task]);
 
   useEffect(() => {
     if (project && !isFinished) {
@@ -923,8 +930,34 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
         </div>
 
         {task.has_image && (
-          <div className="task-image-container">
-            <img src={task.image_path} alt="Task" />
+          <div className="task-image-container" style={{ position: 'relative', minHeight: '200px' }}>
+            {task.use_image_loading_bar && !imageLoaded && (
+              <div 
+                className="loading-state" 
+                style={{
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  right: 0, 
+                  bottom: 0, 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  backgroundColor: 'var(--bg-primary)',
+                  zIndex: 10,
+                  borderRadius: '12px'
+                }}
+              >
+                <div className="spinner"></div>
+                <span style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>טוען תמונה…</span>
+              </div>
+            )}
+            <img 
+              src={task.image_path} 
+              alt="Task" 
+              onLoad={() => setImageLoaded(true)}
+              style={task.use_image_loading_bar && !imageLoaded ? { display: 'none' } : {}}
+            />
           </div>
         )}
 

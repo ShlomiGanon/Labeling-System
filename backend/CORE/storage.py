@@ -220,6 +220,7 @@ class LocalStorage(BaseStorage):
         """
         Appends label data to a local CSV file.
         Automatically handles creating the file and writing headers if it doesn't exist yet.
+        If the schema has changed (new columns), rewrites the CSV to include the new headers.
 
         Args:
             label_data (dict): Data to be appended.
@@ -229,23 +230,55 @@ class LocalStorage(BaseStorage):
             bool: True if write was successful.
         """
         try:
-            fieldnames = list(label_data.keys())
             file_exists = os.path.isfile(master_file_path)
 
-            # Open file in 'append' mode ('a').
-            with open(master_file_path, mode="a", encoding="utf-8-sig", newline="") as csv_file:
-                writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            if file_exists:
+                # Open to dynamically check if we have new columns to add
+                with open(master_file_path, mode="r", encoding="utf-8-sig", newline="") as csv_file:
+                    reader = csv.DictReader(csv_file)
+                    existing_headers = reader.fieldnames or []
+                    existing_rows = list(reader)
 
-                # Write header only on the very first entry.
-                if not file_exists:
+                new_keys = [k for k in label_data.keys() if k not in existing_headers]
+
+                if new_keys:
+                    # Rewrite the CSV to add new columns to the header
+                    all_headers = existing_headers + new_keys
+                    
+                    # Best-effort recovery: 
+                    # If the file already had rows with extra values (answers without headers),
+                    # DictReader puts them in the `None` key as a list.
+                    clean_rows = []
+                    for row in existing_rows:
+                        extra_vals = row.pop(None, [])
+                        for i, val in enumerate(extra_vals):
+                            if i < len(new_keys):
+                                row[new_keys[i]] = val
+                        clean_rows.append(row)
+
+                    with open(master_file_path, mode="w", encoding="utf-8-sig", newline="") as csv_file:
+                        writer = csv.DictWriter(csv_file, fieldnames=all_headers, extrasaction='ignore')
+                        writer.writeheader()
+                        writer.writerows(clean_rows)
+                        writer.writerow(label_data)
+                    return True
+                else:
+                    # Append as usual, ensuring column order matches existing headers
+                    with open(master_file_path, mode="a", encoding="utf-8-sig", newline="") as csv_file:
+                        writer = csv.DictWriter(csv_file, fieldnames=existing_headers, extrasaction='ignore')
+                        writer.writerow(label_data)
+                    return True
+            else:
+                fieldnames = list(label_data.keys())
+                with open(master_file_path, mode="w", encoding="utf-8-sig", newline="") as csv_file:
+                    writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
                     writer.writeheader()
-
-                writer.writerow(label_data)
-            return True
+                    writer.writerow(label_data)
+                return True
 
         except Exception as error:
-            # We use print here as a simple backup, but normally would log this.
-            print(f"Error saving label: {error}")
+            logger = logging.getLogger("LabelingSystem")
+            logger.error(f"Error saving label: {error}")
             return False
 
 # ---------------------------------------------------------------------------

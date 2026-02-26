@@ -399,6 +399,8 @@ def get_task(project_id: str):
 
     image_link = LocalStorage().get_media_link(row.image_path) if row.has_image() else ""
 
+    from CORE.server import SHOW_IMAGE_LOADING_BAR
+
     return jsonify({
         "row_id":        row.row_id,
         "image_path":    image_link,
@@ -406,6 +408,7 @@ def get_task(project_id: str):
         "workflow_type": project["workflow_type"],
         "has_image":     row.has_image(),
         "has_text":      row.has_text(),
+        "use_image_loading_bar": SHOW_IMAGE_LOADING_BAR,
     })
 
 

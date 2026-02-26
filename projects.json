@@ -24,6 +24,18 @@
               }
             ],
             "title": "ענה על השאלה הבאה"
+          },
+          {
+            "fields": [
+              {
+                "component": "textarea",
+                "id": "field_1772057146210",
+                "label": "תשובתך",
+                "options": [],
+                "placeholder": "מי הוא האדם?"
+              }
+            ],
+            "title": "ומי לדעתך עשה את הפיצ'ר הנוכחי?"
           }
         ],
         "content_type": "image"
