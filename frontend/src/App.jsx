@@ -640,6 +640,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const [manualInput, setManualInput] = useState('');
   const [manualMsg, setManualMsg] = useState('');       // '' | success text | error text
   const [manualMsgType, setManualMsgType] = useState('success'); // 'success' | 'error'
+  const [sourceLabels, setSourceLabels] = useState({});  // raw URL → display label
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -690,7 +691,19 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
     }
     setCsvSources(prev => [...prev, trimmed]);
     setManualInput('');
-    setManualMsg('קובץ הוסף בהצלחה');
+
+    let displayLabel = getSourceLabel(trimmed);
+    if (sourceType === 'gdrive' || sourceType === 's3') {
+      const name = window.prompt("שם הקובץ לתצוגה:", "");
+      if (name && name.trim()) {
+        const provider = sourceType === 'gdrive' ? "Google Drive" : "AWS S3";
+        const label = provider + " - " + name.trim();
+        setSourceLabels(prev => ({ ...prev, [trimmed]: label }));
+        displayLabel = label;
+      }
+    }
+
+    setManualMsg('קובץ הוסף בהצלחה: ' + displayLabel);
     setManualMsgType('success');
   };
 
@@ -750,7 +763,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                   fontSize: '0.88rem',
                 }}>
                   <span style={{ color: 'var(--accent-success)' }}>
-                    ✓ {getSourceLabel(src)}
+                    ✓ {sourceLabels[src] || getSourceLabel(src)}
                   </span>
                   <button
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
