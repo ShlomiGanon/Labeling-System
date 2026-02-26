@@ -606,6 +606,20 @@ function WorkflowBuilder({ steps, onChange }) {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// Helper – human-readable label for a CSV source path or URL
+// ---------------------------------------------------------------------------
+
+function getSourceLabel(src) {
+  const base = src.split('?')[0];
+  const parts = base.split(/[/\\]/).filter(Boolean);
+  const last = parts.length ? parts[parts.length - 1] : src;
+  if (src.includes('drive.google.com') || src.includes('docs.google.com')) {
+    return `Google Drive - ${last}`;
+  }
+  return last;
+}
+
+// ---------------------------------------------------------------------------
 // ProjectFormScreen – handles both creating and editing projects
 // ---------------------------------------------------------------------------
 
@@ -736,7 +750,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                   fontSize: '0.88rem',
                 }}>
                   <span style={{ color: 'var(--accent-success)' }}>
-                    ✓ {src.split(/[/\\]/).pop()}
+                    ✓ {getSourceLabel(src)}
                   </span>
                   <button
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
@@ -990,7 +1004,7 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
             <span className="info-chip">פרויקט מחקרי | תהליך {project.workflow_type}</span>
             {task?.source_csv && (
               <span className="info-chip" style={{ marginRight: '6px' }}>
-                📄 {task.source_csv.split(/[/\\]/).pop()}
+                📄 {getSourceLabel(task.source_csv)}
               </span>
             )}
           </div>
