@@ -624,12 +624,16 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [manualInput, setManualInput] = useState('');
+  const [manualMsg, setManualMsg] = useState('');       // '' | success text | error text
+  const [manualMsgType, setManualMsgType] = useState('success'); // 'success' | 'error'
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploading(true);
     setUploadError('');
+    // Track paths added in this batch so we catch intra-batch duplicates too
+    const addedThisBatch = [];
     for (const file of files) {
       const formData = new FormData();
       formData.append('file', file);
@@ -641,7 +645,12 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
         });
         const data = await res.json();
         if (res.ok) {
-          setCsvSources(prev => [...prev, data.path]);
+          if (csvSources.includes(data.path) || addedThisBatch.includes(data.path)) {
+            setUploadError('המקור כבר משויך לפרויקט');
+          } else {
+            setCsvSources(prev => [...prev, data.path]);
+            addedThisBatch.push(data.path);
+          }
         } else {
           setUploadError(data.error || 'שגיאה בהעלאה');
         }
@@ -659,10 +668,16 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
 
   const addManualSource = () => {
     const trimmed = manualInput.trim();
-    if (trimmed && !csvSources.includes(trimmed)) {
-      setCsvSources(prev => [...prev, trimmed]);
-      setManualInput('');
+    if (!trimmed) return;
+    if (csvSources.includes(trimmed)) {
+      setManualMsg('המקור כבר משויך לפרויקט');
+      setManualMsgType('error');
+      return;
     }
+    setCsvSources(prev => [...prev, trimmed]);
+    setManualInput('');
+    setManualMsg('קובץ הוסף בהצלחה');
+    setManualMsgType('success');
   };
 
   const handleSubmit = () => {
@@ -744,7 +759,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                 key={st.value}
                 className={`preset-option ${sourceType === st.value ? 'selected' : ''}`}
                 style={{ flexDirection: 'column', justifyContent: 'center', textAlign: 'center', padding: '12px 8px', gap: '4px' }}
-                onClick={() => { setSourceType(st.value); setManualInput(''); setUploadError(''); }}
+                onClick={() => { setSourceType(st.value); setManualInput(''); setUploadError(''); setManualMsg(''); }}
               >
                 <span style={{ fontSize: '1.3rem' }}>{st.icon}</span>
                 <strong style={{ fontSize: '0.83rem' }}>{st.label}</strong>
@@ -794,12 +809,17 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                 <input
                   type="text"
                   value={manualInput}
-                  onChange={e => setManualInput(e.target.value)}
+                  onChange={e => { setManualInput(e.target.value); setManualMsg(''); }}
                   onKeyDown={e => e.key === 'Enter' && addManualSource()}
                   placeholder="הדבק לינק שיתוף של Google Drive (קובץ CSV)"
                 />
                 <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>הוסף</button>
               </div>
+              {manualMsg && (
+                <p className="field-hint" style={{ marginTop: '6px', color: manualMsgType === 'success' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                  {manualMsg}
+                </p>
+              )}
               <p className="field-hint">וודא שהקובץ שיתוף ל׳כל מי שיש לו קישור׳ ושהוא בפורמט CSV</p>
             </div>
           )}
@@ -811,12 +831,17 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                 <input
                   type="text"
                   value={manualInput}
-                  onChange={e => setManualInput(e.target.value)}
+                  onChange={e => { setManualInput(e.target.value); setManualMsg(''); }}
                   onKeyDown={e => e.key === 'Enter' && addManualSource()}
                   placeholder="למשל: s3://my-bucket/data/labels.csv"
                 />
                 <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>הוסף</button>
               </div>
+              {manualMsg && (
+                <p className="field-hint" style={{ marginTop: '6px', color: manualMsgType === 'success' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                  {manualMsg}
+                </p>
+              )}
               <p className="field-hint">הזן S3 URI מלא (s3://bucket/key) – ודא שלשרת יש הרשאות גישה</p>
             </div>
           )}
