@@ -269,15 +269,22 @@ def create_project():
     # Extracts and cleans the project name.
     # Returns a string.
     name = (data.get("name") or "").strip()
-    # Extracts the target data source path.
-    # Returns a string.
-    source_csv = (data.get("source_csv") or "").strip()
     # Retrieves optional custom UI schema.
     # Returns a dictionary or None.
     custom_schema = data.get("custom_schema")
 
-    if not name or not source_csv:
-        return jsonify({"error": "Name and source path are required."}), 400
+    # Accept csv_sources (array, new) or source_csv (string, legacy) — normalize to a list.
+    csv_sources = data.get("csv_sources")
+    if csv_sources is not None:
+        csv_sources = [p.strip() for p in csv_sources if isinstance(p, str) and p.strip()]
+    else:
+        legacy = (data.get("source_csv") or "").strip()
+        csv_sources = [legacy] if legacy else []
+
+    if not name:
+        return jsonify({"error": "Project name is required."}), 400
+    if not csv_sources:
+        return jsonify({"error": "At least one source CSV is required (csv_sources or source_csv)."}), 400
 
     # Decides the workflow strategy based on the input schema.
     if custom_schema:
@@ -305,7 +312,7 @@ def create_project():
         "name":          name,
         "owner":         current_user(),
         "workflow_type": workflow_type.value,
-        "source_csv":    source_csv,
+        "csv_sources":   csv_sources,
         "master_csv":    master_csv,
     }
 
@@ -372,10 +379,20 @@ def update_project(project_id):
         project.pop("custom_schema", None)
     
     source_changed = False
-    if "source_csv" in data:
+    if "csv_sources" in data:
+        new_sources = [p.strip() for p in data["csv_sources"] if isinstance(p, str) and p.strip()]
+        if new_sources != project.get("csv_sources"):
+            project["csv_sources"] = new_sources
+            project.pop("source_csv", None)  # Remove legacy field if present
+            source_changed = True
+    elif "source_csv" in data:
         new_source = data["source_csv"].strip()
-        if new_source != project["source_csv"]:
-            project["source_csv"] = new_source
+        old_sources = project.get("csv_sources") or (
+            [project["source_csv"]] if project.get("source_csv") else []
+        )
+        if [new_source] != old_sources:
+            project["csv_sources"] = [new_source]
+            project.pop("source_csv", None)
             source_changed = True
             
     # Persists the modified project list back to the configuration file.
@@ -423,21 +440,16 @@ def delete_project(project_id):
     delete_files = request.args.get("delete_files", "false").lower() == "true"
 
     if delete_files:
-        for csv_key in ("source_csv", "master_csv"):
-            path = project.get(csv_key, "")
-            # Verifies that the file actually exists before attempting removal.
-            # Returns True if it's a file.
+        # Collect source files: prefer csv_sources (array, new), fall back to source_csv (legacy).
+        source_paths = project.get("csv_sources") or (
+            [project["source_csv"]] if project.get("source_csv") else []
+        )
+        for path in source_paths + [project.get("master_csv", "")]:
             if path and os.path.isfile(path):
                 try:
-                    # Deletes the file from the server's filesystem.
-                    # Returns None.
                     os.remove(path)
-                    # Logs the successful deletion of a data file.
-                    # Returns None.
                     logger.info(f"Deleted file: {path}")
                 except Exception as e:
-                    # Logs a warning if the file removal fails due to permissions or locks.
-                    # Returns None.
                     logger.warning(f"Could not delete {path}: {e}")
 
     # Creates a new projects list excluding the one being deleted.
@@ -508,6 +520,7 @@ def get_task(project_id: str):
         "workflow_type": project["workflow_type"],
         "has_image":     row.has_image(),
         "has_text":      row.has_text(),
+        "source_csv":    row.source_csv,
         "use_image_loading_bar": SHOW_IMAGE_LOADING_BAR,
     })
 

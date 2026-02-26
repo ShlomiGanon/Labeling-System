@@ -616,65 +616,69 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const [contentType, setContentType] = useState(initialData?.custom_schema?.content_type || 'both');
   const [customSteps, setCustomSteps] = useState(initialData?.custom_schema?.steps || []);
 
-  // CSV source picker
-  const [source, setSource] = useState(initialData?.source_csv || '');
-  const [sourceType, setSourceType] = useState(() => {
-    if (!initialData?.source_csv) return 'local';
-    const s = initialData.source_csv;
-    if (s.startsWith('s3://')) return 's3';
-    if (s.includes('drive.google.com') || s.includes('docs.google.com')) return 'gdrive';
-    return 'local';
-  });
-  
+  // CSV sources — support csv_sources (new array) or source_csv (legacy single string)
+  const initialSources = initialData?.csv_sources ??
+    (initialData?.source_csv ? [initialData.source_csv] : []);
+  const [csvSources, setCsvSources] = useState(initialSources);
+  const [sourceType, setSourceType] = useState('local');
   const [uploading, setUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(null); 
-  const [uploadMsg, setUploadMsg] = useState(initialData?.source_csv ? '✓ קובץ קיים' : '');
+  const [uploadError, setUploadError] = useState('');
+  const [manualInput, setManualInput] = useState('');
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setUploading(true);
-    setUploadStatus(null);
-    setUploadMsg('');
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await fetch('/api/upload-csv', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSource(data.path);
-        setUploadStatus('ok');
-        setUploadMsg(`✓ הקובץ הועלה: ${data.path}`);
-      } else {
-        setUploadStatus('error');
-        setUploadMsg(data.error || 'שגיאה בהעלאה');
+    setUploadError('');
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch('/api/upload-csv', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setCsvSources(prev => [...prev, data.path]);
+        } else {
+          setUploadError(data.error || 'שגיאה בהעלאה');
+        }
+      } catch (err) {
+        setUploadError('שגיאת רשת: ' + err.message);
       }
-    } catch (err) {
-      setUploadStatus('error');
-      setUploadMsg('שגיאת רשת: ' + err.message);
-    } finally {
-      setUploading(false);
+    }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  const removeSource = (idx) => {
+    setCsvSources(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const addManualSource = () => {
+    const trimmed = manualInput.trim();
+    if (trimmed && !csvSources.includes(trimmed)) {
+      setCsvSources(prev => [...prev, trimmed]);
+      setManualInput('');
     }
   };
 
   const handleSubmit = () => {
-    const payload = { 
-        name, 
-        source_csv: source,
-        owner: initialData?.owner // preserve owner on edit
+    const payload = {
+      name,
+      csv_sources: csvSources,
+      owner: initialData?.owner,
     };
-    
+
     if (workflowMode === 'custom') {
       payload.workflow_type = 'CUSTOM';
       payload.custom_schema = { steps: customSteps, content_type: contentType };
     } else {
       payload.workflow_type = workflow;
     }
-    
+
     onSubmit(payload);
   };
 
@@ -700,10 +704,37 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
           />
         </div>
 
-        {/* CSV Source Picker */}
+        {/* CSV Sources */}
         <div className="field-group">
-          <label>מקור קובץ הנתונים (CSV)</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '8px', marginBottom: '14px' }}>
+          <label>קובצי מקור (CSV)</label>
+
+          {/* List of already-added sources */}
+          {csvSources.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+              {csvSources.map((src, idx) => (
+                <div key={idx} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: 'rgba(63,185,80,0.08)',
+                  border: '1px solid rgba(63,185,80,0.25)',
+                  borderRadius: '8px',
+                  fontSize: '0.88rem',
+                }}>
+                  <span style={{ color: 'var(--accent-success)' }}>
+                    ✓ {src.split(/[/\\]/).pop()}
+                  </span>
+                  <button
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
+                    onClick={() => removeSource(idx)}
+                    title="הסר קובץ"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Source type picker */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
             {[
               { value: 'local', icon: '📁', label: 'מהמחשב' },
               { value: 'gdrive', icon: '☁️', label: 'Google Drive' },
@@ -713,7 +744,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                 key={st.value}
                 className={`preset-option ${sourceType === st.value ? 'selected' : ''}`}
                 style={{ flexDirection: 'column', justifyContent: 'center', textAlign: 'center', padding: '12px 8px', gap: '4px' }}
-                onClick={() => { setSourceType(st.value); setSource(isEdit && st.value === 'local' ? initialData.source_csv : ''); setUploadStatus(null); setUploadMsg(''); }}
+                onClick={() => { setSourceType(st.value); setManualInput(''); setUploadError(''); }}
               >
                 <span style={{ fontSize: '1.3rem' }}>{st.icon}</span>
                 <strong style={{ fontSize: '0.83rem' }}>{st.label}</strong>
@@ -737,20 +768,21 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                   fontSize: '0.9rem',
                 }}
               >
-                {uploading ? <><span className="spinner" /><span>מעלה...</span></> : <><span>📂</span><span>{source ? `✓ קובץ נבחר: ${source.split('/').pop()}` : 'לחץ לבחירת קובץ CSV'}</span></>}
+                {uploading
+                  ? <><span className="spinner" /><span>מעלה...</span></>
+                  : <><span>📂</span><span>לחץ לבחירת קובץ CSV (ניתן לבחור מרובים)</span></>}
               </label>
               <input
                 id="csv-upload"
                 type="file"
                 accept=".csv"
+                multiple
                 style={{ display: 'none' }}
                 onChange={handleFileUpload}
                 disabled={uploading}
               />
-              {uploadMsg && (
-                <p className={`field-hint`} style={{ marginTop: '8px', color: (uploadStatus === 'ok' || isEdit) ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-                  {uploadMsg}
-                </p>
+              {uploadError && (
+                <p className="field-hint" style={{ color: 'var(--accent-danger)', marginTop: '6px' }}>{uploadError}</p>
               )}
             </div>
           )}
@@ -758,12 +790,16 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
           {/* Google Drive */}
           {sourceType === 'gdrive' && (
             <div>
-              <input
-                type="text"
-                value={source}
-                onChange={e => setSource(e.target.value)}
-                placeholder="הדבק לינק שיתוף של Google Drive (קובץ CSV)"
-              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={manualInput}
+                  onChange={e => setManualInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addManualSource()}
+                  placeholder="הדבק לינק שיתוף של Google Drive (קובץ CSV)"
+                />
+                <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>הוסף</button>
+              </div>
               <p className="field-hint">וודא שהקובץ שיתוף ל׳כל מי שיש לו קישור׳ ושהוא בפורמט CSV</p>
             </div>
           )}
@@ -771,12 +807,16 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
           {/* S3 */}
           {sourceType === 's3' && (
             <div>
-              <input
-                type="text"
-                value={source}
-                onChange={e => setSource(e.target.value)}
-                placeholder="למשל: s3://my-bucket/data/labels.csv"
-              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={manualInput}
+                  onChange={e => setManualInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addManualSource()}
+                  placeholder="למשל: s3://my-bucket/data/labels.csv"
+                />
+                <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>הוסף</button>
+              </div>
               <p className="field-hint">הזן S3 URI מלא (s3://bucket/key) – ודא שלשרת יש הרשאות גישה</p>
             </div>
           )}
@@ -923,6 +963,11 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
           <div>
             <h2>{project.name}</h2>
             <span className="info-chip">פרויקט מחקרי | תהליך {project.workflow_type}</span>
+            {task?.source_csv && (
+              <span className="info-chip" style={{ marginRight: '6px' }}>
+                📄 {task.source_csv.split(/[/\\]/).pop()}
+              </span>
+            )}
           </div>
           <button className="btn btn-secondary" style={{ padding: '8px 14px', minWidth: 'auto' }} onClick={onExit}>
             יציאה

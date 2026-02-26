@@ -59,57 +59,56 @@ _engines: dict = {}
 # It checks if an engine already exists for the project ID; if not, it handles storage initialization,
 # determines whether the source is local or remote, and pre-loads the data.
 # It returns the LabelingEngine instance associated with the project.
+def _derive_source_master(project_master: str, source_path: str) -> str:
+    """
+    For multi-source projects, derive a dedicated output file for one source CSV.
+    Example: master_myproject.csv + source_batch2.csv → master_myproject__batch2.csv
+    """
+    master_dir  = os.path.dirname(project_master)
+    master_stem = os.path.splitext(os.path.basename(project_master))[0]
+    source_stem = os.path.splitext(os.path.basename(source_path))[0]
+    return os.path.join(master_dir, f"{master_stem}__{source_stem}.csv")
+
+
 def get_engine(project: dict) -> LabelingEngine:
     # Extracts the project ID from the project dictionary.
     # Returns a string.
     pid = project["id"]
     if pid not in _engines:
-        # Retrieves the source CSV path from the project metadata.
-        # Returns a path string.
-        source_path = project["source_csv"]
-        # Checks if the source path is a URL or a Google Drive link to decide on the storage type.
-        # Returns True if it's remote, False otherwise.
-        is_remote = source_path.startswith("http") or "drive.google.com" in source_path
-        
-        # Initializes the appropriate storage backend (Remote or Local).
-        # Returns an instance of RemoteStorage or LocalStorage.
+        # Support csv_sources (array, new) with fallback to source_csv (string, legacy).
+        raw_sources = project.get("csv_sources") or (
+            [project["source_csv"]] if project.get("source_csv") else []
+        )
+
+        # Determine storage type from the first source path.
+        first_source = raw_sources[0] if raw_sources else ""
+        is_remote = first_source.startswith("http") or "drive.google.com" in first_source
+
         storage = RemoteStorage() if is_remote else LocalStorage()
-        # Constructs the full file path for the master CSV file.
-        # Returns the absolute path as a string.
         master_path = os.path.join(BASE_DIR, project["master_csv"])
-        # Creates a new instance of the LabelingEngine with the specified storage and master file.
-        # Returns a LabelingEngine object.
         engine = LabelingEngine(storage, master_path)
         engine.init_error = None
 
-        # Pre-load the source data
+        # Pre-load all source files into the engine queue.
+        # For multi-source projects each source gets its own output file so annotations
+        # are kept separate. Single-source projects use master_path directly (backward compat).
+        multi_source = len(raw_sources) > 1
         try:
-            if is_remote:
-                # Triggers the engine to fetch and load data from a remote CSV source.
-                # Returns an integer (count of loaded rows).
-                engine.load_source(source_path)
-            else:
-                # Constructs the full file path for the local source CSV.
-                # Returns the absolute path as a string.
-                full_source_path = os.path.join(BASE_DIR, source_path)
-                # Verifies if the source CSV file exists on the local filesystem.
-                # Returns True if it exists, False otherwise.
-                if os.path.isfile(full_source_path):
-                    # Loads the local CSV data into the engine.
-                    # Returns an integer (count of loaded rows).
-                    engine.load_source(full_source_path)
+            for source_path in raw_sources:
+                if is_remote:
+                    per_master = _derive_source_master(master_path, source_path) if multi_source else None
+                    engine.load_source(source_path, master_path=per_master)
                 else:
-                    msg = f"Source CSV not found at: {full_source_path}"
-                    # Logs a warning if the file is missing.
-                    # Returns None.
-                    logger.warning(msg)
-                    engine.init_error = msg
+                    full_source_path = os.path.join(BASE_DIR, source_path)
+                    if os.path.isfile(full_source_path):
+                        per_master = _derive_source_master(master_path, full_source_path) if multi_source else None
+                        engine.load_source(full_source_path, master_path=per_master)
+                    else:
+                        msg = f"Source CSV not found at: {full_source_path}"
+                        logger.warning(msg)
+                        engine.init_error = msg
         except Exception as e:
-            # Logs any major errors encountered during engine initialization.
-            # Returns None.
             logger.error(f"Error loading source data for project {pid}: {e}")
-            # Converts the exception to a string for error reporting.
-            # Returns the error message.
             engine.init_error = str(e)
 
         # Stores the initialized engine in the global registry.

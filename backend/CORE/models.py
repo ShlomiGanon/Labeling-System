@@ -116,6 +116,7 @@ class SourceRow:
     row_id: str
     image_path: str = ""
     text_content: str = ""
+    source_csv: str = ""  # Path of the CSV file this row originated from
 
     # Checks if the row includes a valid image path.
     # Returns True if image_path is not empty.

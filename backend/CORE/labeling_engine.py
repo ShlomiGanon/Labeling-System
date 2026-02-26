@@ -37,6 +37,11 @@ class LabelingEngine:
 
         # REASONING: Track completed IDs to prevent double labeling during incremental updates.
         self._processed_ids: set = set()
+
+        # Maps each source CSV path to its designated output (master) file.
+        # Used to route annotations to the correct file when multiple sources are loaded.
+        self._source_to_master: Dict[str, str] = {}
+
         # Scans the master results file to populate the set of already completed row IDs.
         # Returns None.
         self._load_processed_ids()
@@ -45,76 +50,70 @@ class LabelingEngine:
         # Returns a Lock object.
         self._lock = threading.Lock()
 
-    # Reads the master results CSV file to identify and record which rows have already been completed.
-    # This prevents duplicating work when identical source data is reloaded.
+    # Scans all known master files (project-level and per-source) to build the set of
+    # already-completed row IDs. Accepts an optional extra path for a master not yet registered.
     # It does not return anything.
-    def _load_processed_ids(self):
-        # Verifies if the master results file actually exists on the filesystem.
-        # Returns True if it exists, False otherwise.
-        if not os.path.exists(self._master_file_path):
-            return
+    def _load_processed_ids(self, current_master: str = None):
+        # Collect every master file path we know about.
+        paths_to_scan = {self._master_file_path}
+        paths_to_scan.update(self._source_to_master.values())
+        if current_master:
+            paths_to_scan.add(current_master)
 
-        try:
-            # Opens the master results file for reading with UTF-8 encoding.
-            # Returns a file object.
-            with open(self._master_file_path, mode="r", encoding="utf-8-sig") as f:
-                # Initializes a CSV dictionary reader to parse the file rows.
-                # Returns a DictReader object.
-                reader = csv.DictReader(f)
-                for row in reader:
-                    # Retrieves the unique identifier for the current row.
-                    # Returns the row ID as a string or None.
-                    rid = row.get("row_id")
-                    if rid:
-                        # Adds the row ID to the set of processed IDs to track completion.
-                        # Returns None.
-                        self._processed_ids.add(str(rid))
-        except Exception as e:
-            # Logs an error message if the file reading or parsing fails.
-            # Returns None.
-            self._logger.error(f"Error loading processed IDs from {self._master_file_path}: {e}")
+        for path in paths_to_scan:
+            if not os.path.exists(path):
+                continue
+            try:
+                with open(path, mode="r", encoding="utf-8-sig") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        rid = row.get("row_id")
+                        if rid:
+                            self._processed_ids.add(str(rid))
+            except Exception as e:
+                self._logger.error(f"Error loading processed IDs from {path}: {e}")
 
-    # Updates the engine's task queue with new rows from a source CSV file.
-    # It filters out rows that are either already processed, currently active, or already in the queue.
-    # Returns the integer count of new rows successfully added to the queue.
-    def load_source(self, csv_file_path: str) -> int:
-        # Ensures that only one thread can modify the queue at a time.
+    # Updates the engine's task queue with rows from a source CSV file.
+    # master_path: optional per-source output file; falls back to the project-level master.
+    # Each loaded row is tagged with csv_file_path as its origin for annotation routing.
+    # Returns the integer count of new rows added to the queue.
+    def load_source(self, csv_file_path: str, master_path: str = None) -> int:
         with self._lock:
-            # Refreshes the internal list of completed row IDs to ensure synchronization with the filesystem.
-            # Returns None.
-            self._load_processed_ids()
-            
-            # Delegates the loading of the source CSV data to the configured storage provider.
-            # Returns a list of SourceRow objects.
+            # Resolve the output file for this source.
+            effective_master = master_path or self._master_file_path
+            # Scan all known masters (including this one) before filtering.
+            self._load_processed_ids(current_master=effective_master)
+            # Register source → master so submit_label can route correctly.
+            self._source_to_master[csv_file_path] = effective_master
+
             new_rows = self._storage.load_source_csv(csv_file_path)
-            
-            # Collects the IDs of all rows currently waiting in the queue for comparison.
-            # Returns a set of row IDs.
+
             current_queued_ids = {row.row_id for row in self._row_queue}
-            # Collects the IDs of all rows currently being processed by users.
-            # Returns a set of row IDs.
             current_active_ids = {row.row_id for row in self._active_rows.values()}
-            
+
             added_count = 0
             for row in new_rows:
-                # Normalizes row IDs to strings for robust comparison.
-                # Returns a string.
                 rid_str = str(row.row_id)
-                # Adds a row only if it's completely new to the system.
-                if (rid_str not in self._processed_ids and 
-                    rid_str not in current_queued_ids and 
-                    rid_str not in current_active_ids):
-                    # Inserts the new task into the back of the task queue.
-                    # Returns None.
+                if (rid_str not in self._processed_ids and
+                        rid_str not in current_queued_ids and
+                        rid_str not in current_active_ids):
+                    row.source_csv = csv_file_path  # Tag row with its origin
                     self._row_queue.append(row)
                     added_count += 1
-            
+
             if added_count > 0:
-                # Logs the successful addition of new tasks for auditing purposes.
-                # Returns None.
                 self._logger.info(f"Added {added_count} NEW rows from {csv_file_path}")
-            # Returns the total number of tasks that were newly queued.
             return added_count
+
+    # Loads rows from multiple source CSVs and merges them into the queue.
+    # master_paths: optional list of per-source output files, aligned by index with csv_file_paths.
+    # Returns the total count of new rows added across all files.
+    def load_sources(self, csv_file_paths: List[str], master_paths: List[str] = None) -> int:
+        total = 0
+        for i, path in enumerate(csv_file_paths):
+            master = master_paths[i] if master_paths and i < len(master_paths) else None
+            total += self.load_source(path, master_path=master)
+        return total
 
     # Assigns the next available task from the queue to a specific user.
     # If the user is already working on a row, it returns that specific row to ensure idempotency.
@@ -161,23 +160,23 @@ class LabelingEngine:
                 # Returns a ValueError.
                 raise ValueError(f"ID Mismatch: User assigned {active_row.row_id}, but submitted {label.row_id}")
 
-            # Converts the label object into a standard dictionary format for CSV storage.
-            # Returns a dictionary of label fields.
             label_dict = label.to_dict()
-            # Persists the label dictionary to the master results CSV file.
-            # Returns True if successful, False otherwise.
-            success = self._storage.append_label(label_dict, self._master_file_path)
+
+            # Route to the per-source master if registered; fall back to the project master
+            # for single-CSV projects and backward-compat cases where source_csv is unset.
+            target_master = (
+                self._source_to_master.get(active_row.source_csv)
+                or self._master_file_path
+            )
+            success = self._storage.append_label(label_dict, target_master)
 
             if success:
-                # Marks the row ID as processed in the internal cache to avoid re-loading.
-                # Returns None.
                 self._processed_ids.add(str(active_row.row_id))
-                # Removes the user from the tracking of active tasks.
-                # Returns None.
                 del self._active_rows[user_name]
-                # Logs a confirmation of the saved labeling action.
-                # Returns None.
-                self._logger.info(f"Row {active_row.row_id} tagged by {user_name} and saved.")
+                self._logger.info(
+                    f"Row {active_row.row_id} tagged by {user_name} "
+                    f"and saved to {os.path.basename(target_master)}"
+                )
             
             # Returns whether the data was successfully written to the storage backend.
             return success
