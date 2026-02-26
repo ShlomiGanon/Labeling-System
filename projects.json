@@ -48,6 +48,35 @@
       "workflow_type": "C",
       "source_csv": "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view?usp=sharing",
       "master_csv": "backend/data/master_ששש.csv"
+    },
+    {
+      "id": "d6247bd8-6893-40e6-b27b-595fceddceb4",
+      "name": "שדגשדגש",
+      "owner": "aaa",
+      "workflow_type": "CUSTOM",
+      "source_csv": "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view?usp=sharing",
+      "master_csv": "backend/data/master_שדגשדגש.csv",
+      "custom_schema": {
+        "steps": [
+          {
+            "title": "שלב",
+            "fields": [
+              {
+                "id": "field_1772100510441",
+                "label": "מי בתמונה",
+                "component": "button_group",
+                "placeholder": "",
+                "options": [
+                  "ביבי",
+                  "טראמפ",
+                  "בידן"
+                ]
+              }
+            ]
+          }
+        ],
+        "content_type": "both"
+      }
     }
   ]
 }

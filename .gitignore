@@ -1,2 +1,5 @@
 # התעלמות מכל מה שנמצא בתוך תיקיית tests
 tests/
+
+backend/__pycache__/
+backend/*.pyc
