@@ -1,5 +1,22 @@
-# התעלמות מכל מה שנמצא בתוך תיקיית tests
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+
+# Project Specific
+backend/data/*.csv
+!backend/data/sample.csv  # keep example/sample files if needed
 tests/
 
-backend/__pycache__/
-backend/*.pyc
+# OS-specific
+.DS_Store
+Thumbs.db
