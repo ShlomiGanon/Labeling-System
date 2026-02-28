@@ -80,11 +80,7 @@ def get_engine(project: dict) -> LabelingEngine:
             [project["source_csv"]] if project.get("source_csv") else []
         )
 
-        # Determine storage type from the first source path.
-        first_source = raw_sources[0] if raw_sources else ""
-        is_remote = first_source.startswith("http") or "drive.google.com" in first_source
-
-        storage = RemoteStorage() if is_remote else LocalStorage()
+        storage = LocalStorage()
         master_path = os.path.join(BASE_DIR, project["master_csv"])
         engine = LabelingEngine(storage, master_path)
         engine.init_error = None
@@ -96,14 +92,16 @@ def get_engine(project: dict) -> LabelingEngine:
         multi_source = len(raw_sources) > 1
         for source_path in raw_sources:
             try:
-                if is_remote:
+                is_remote_source = source_path.startswith("http://") or source_path.startswith("https://")
+                source_storage = RemoteStorage() if is_remote_source else LocalStorage()
+                if is_remote_source:
                     per_master = _derive_source_master(master_path, source_path) if multi_source else None
-                    engine.load_source(source_path, master_path=per_master)
+                    engine.load_source(source_path, master_path=per_master, storage=source_storage)
                 else:
                     full_source_path = os.path.join(BASE_DIR, source_path)
                     if os.path.isfile(full_source_path):
                         per_master = _derive_source_master(master_path, full_source_path) if multi_source else None
-                        engine.load_source(full_source_path, master_path=per_master)
+                        engine.load_source(full_source_path, master_path=per_master, storage=source_storage)
                     else:
                         msg = f"Source CSV not found at: {full_source_path}"
                         logger.warning(msg)

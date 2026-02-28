@@ -409,7 +409,7 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
               <span>חוקר אחראי: {p.owner}</span>
               {hasError && (
                 <span style={{ color: '#ff4d4f', fontWeight: 'bold', marginTop: '4px', display: 'block' }}>
-                  ⚠️ שגיאת גישה לקישור (פרטי / לא חוקי)
+                  ⚠️ {getProjectErrorLabel(p)}
                 </span>
               )}
               {!p.is_finished && (
@@ -638,6 +638,36 @@ function getSourceLabel(src) {
   return last;
 }
 
+function getSourceErrorLabel(src, errorMessage) {
+  if (!errorMessage) return '';
+  if (src.includes('drive.google.com') || src.includes('docs.google.com')) {
+    return 'שגיאת גישה לקישור Google Drive';
+  }
+  if (errorMessage.includes('File not found') || errorMessage.includes('Source CSV not found')) {
+    return 'קובץ מקומי לא נמצא בשרת';
+  }
+  return 'שגיאה בטעינת קובץ המקור';
+}
+
+function getProjectErrorLabel(project) {
+  const sourceErrors = project?.source_errors || {};
+  const sourceEntries = Object.entries(sourceErrors);
+  if (!sourceEntries.length) {
+    return 'שגיאה בטעינת מקורות הפרויקט';
+  }
+  const hasRemoteError = sourceEntries.some(([src]) => src.includes('drive.google.com') || src.includes('docs.google.com'));
+  const hasLocalError = sourceEntries.some(([, message]) =>
+    message.includes('File not found') || message.includes('Source CSV not found')
+  );
+  if (hasLocalError && !hasRemoteError) {
+    return 'קובץ מקור מקומי חסר או לא זמין';
+  }
+  if (hasRemoteError && !hasLocalError) {
+    return 'שגיאת גישה ל-Google Drive';
+  }
+  return 'חלק ממקורות הפרויקט לא נטענו';
+}
+
 // ---------------------------------------------------------------------------
 // ProjectFormScreen – handles both creating and editing projects
 // ---------------------------------------------------------------------------
@@ -791,7 +821,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                     {srcError ? '⚠️' : '✓'} {sourceLabels[src] || getSourceLabel(src)}
                     {srcError && (
                       <span style={{ display: 'block', fontSize: '0.78rem', opacity: 0.8, fontWeight: 400, marginTop: '2px' }}>
-                        שגיאת גישה (פרטי / לא חוקי)
+                        {getSourceErrorLabel(src, srcError)}
                       </span>
                     )}
                   </span>

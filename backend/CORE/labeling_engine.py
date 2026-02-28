@@ -26,6 +26,7 @@ class LabelingEngine:
         self._logger = logging.getLogger("LabelingSystem")
         self._storage = storage
         self._master_file_path = master_file_path
+        self._source_storages: Dict[str, BaseStorage] = {}
 
         # Initializes a deque for the row queue to manage tasks in a first-in-first-out manner.
         # Returns an empty deque.
@@ -77,16 +78,18 @@ class LabelingEngine:
     # master_path: optional per-source output file; falls back to the project-level master.
     # Each loaded row is tagged with csv_file_path as its origin for annotation routing.
     # Returns the integer count of new rows added to the queue.
-    def load_source(self, csv_file_path: str, master_path: str = None) -> int:
+    def load_source(self, csv_file_path: str, master_path: str = None, storage: BaseStorage = None) -> int:
         with self._lock:
+            loader = storage or self._storage
             # Resolve the output file for this source.
             effective_master = master_path or self._master_file_path
             # Scan all known masters (including this one) before filtering.
             self._load_processed_ids(current_master=effective_master)
             # Register source → master so submit_label can route correctly.
             self._source_to_master[csv_file_path] = effective_master
+            self._source_storages[csv_file_path] = loader
 
-            new_rows = self._storage.load_source_csv(csv_file_path)
+            new_rows = loader.load_source_csv(csv_file_path)
 
             current_queued_ids = {row.row_id for row in self._row_queue}
             current_active_ids = {row.row_id for row in self._active_rows.values()}
@@ -108,11 +111,12 @@ class LabelingEngine:
     # Loads rows from multiple source CSVs and merges them into the queue.
     # master_paths: optional list of per-source output files, aligned by index with csv_file_paths.
     # Returns the total count of new rows added across all files.
-    def load_sources(self, csv_file_paths: List[str], master_paths: List[str] = None) -> int:
+    def load_sources(self, csv_file_paths: List[str], master_paths: List[str] = None, storages: List[BaseStorage] = None) -> int:
         total = 0
         for i, path in enumerate(csv_file_paths):
             master = master_paths[i] if master_paths and i < len(master_paths) else None
-            total += self.load_source(path, master_path=master)
+            storage = storages[i] if storages and i < len(storages) else None
+            total += self.load_source(path, master_path=master, storage=storage)
         return total
 
     # Assigns the next available task from the queue to a specific user.
@@ -168,7 +172,8 @@ class LabelingEngine:
                 self._source_to_master.get(active_row.source_csv)
                 or self._master_file_path
             )
-            success = self._storage.append_label(label_dict, target_master)
+            target_storage = self._source_storages.get(active_row.source_csv, self._storage)
+            success = target_storage.append_label(label_dict, target_master)
 
             if success:
                 self._processed_ids.add(str(active_row.row_id))

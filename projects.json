@@ -25,6 +25,19 @@
       "source_labels": {
         "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - אופק גבר"
       }
+    },
+    {
+      "id": "00d9889e-6d59-46c4-8437-32d92be044fd",
+      "name": "גיגי",
+      "owner": "אופק",
+      "workflow_type": "A",
+      "csv_sources": [
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
+      ],
+      "master_csv": "backend/data/master_גיגי.csv",
+      "source_labels": {
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - אופק"
+      }
     }
   ]
 }
