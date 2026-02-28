@@ -47,7 +47,13 @@ from storage import LocalStorage, RemoteStorage
 app = Flask(__name__, static_folder="../../frontend/dist", static_url_path="")
 # Sets a secret key for session management.
 # Returns None.
-app.secret_key = "labeling-system-secret-key-change-in-production"
+_secret = os.environ.get("SECRET_KEY", "")
+if not _secret:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Copy backend/.env.example to backend/.env and set a strong secret key."
+    )
+app.secret_key = _secret
 
 # Defines the location of the projects configuration file.
 PROJECTS_FILE = os.path.join(BASE_DIR, "projects.json")
@@ -192,7 +198,16 @@ def add_cors_headers(response):
     
     # Validates if the request comes from the trusted local development environment.
     # Returns True if it's localhost.
-    if origin in ("http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5000"):
+    _allowed = {
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5000",
+    }
+    extra = os.environ.get("ALLOWED_ORIGIN", "").strip()
+    if extra:
+        _allowed.add(extra)
+
+    if origin in _allowed:
         # Explicitly allows the specified origin to access backend resources.
         # Returns None.
         response.headers["Access-Control-Allow-Origin"] = origin

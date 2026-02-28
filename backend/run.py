@@ -29,16 +29,18 @@ from API.api import api_bp
 app.register_blueprint(api_bp, url_prefix="/api")
 
 if __name__ == "__main__":
-    # Outputs a visual separator and status messages to the console during startup.
-    # Returns None.
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    port  = int(os.environ.get("PORT", 5000))
+
     print("-" * 60)
     print(" [BACKEND] Labeling System is starting...")
     print(" [STATUS]  Flask Server: ACTIVATED")
     print(" [STATUS]  API Routes:   REGISTERED")
+    print(f" [MODE]    Debug: {debug}")
     print("-" * 60)
-    print(" [READY]   Server is listening on: http://localhost:5000")
+    print(f" [READY]   Server is listening on: http://0.0.0.0:{port}")
     print("-" * 60)
-    
-    # Launches the development server with hot-reloading enabled.
-    # Returns an ongoing blocking process.
-    app.run(debug=True, host="0.0.0.0", port=5000)
+
+    # Development only — in production use:
+    #   gunicorn --bind 0.0.0.0:5000 run:app
+    app.run(debug=debug, host="0.0.0.0", port=port)

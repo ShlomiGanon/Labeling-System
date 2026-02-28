@@ -394,7 +394,7 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
                 🗑️
               </button>
             </div>
-            
+
             <h3>{p.name}</h3>
             <div className="project-meta">
               <span>חוקר אחראי: {p.owner}</span>
@@ -639,8 +639,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const [uploadError, setUploadError] = useState('');
   const [manualInput, setManualInput] = useState('');
   const [manualMsg, setManualMsg] = useState('');       // '' | success text | error text
-  const [manualMsgType, setManualMsgType] = useState('success'); // 'success' | 'error'
-  const [sourceLabels, setSourceLabels] = useState({});  // raw URL → display label
+  const [manualMsgType, setManualMsgType] = useState('success'); // 'success' | 'err  const [sourceLabels, setSourceLabels] = useState({});  // raw URL → display label
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -979,7 +978,7 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
 
   useEffect(() => {
     if (task) {
-        setImageLoaded(false);
+      setImageLoaded(false);
     }
   }, [task]);
 
@@ -1029,17 +1028,17 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
         {task.has_image && (
           <div className="task-image-container" style={{ position: 'relative', minHeight: '200px' }}>
             {task.use_image_loading_bar && !imageLoaded && (
-              <div 
-                className="loading-state" 
+              <div
+                className="loading-state"
                 style={{
-                  position: 'absolute', 
-                  top: 0, 
-                  left: 0, 
-                  right: 0, 
-                  bottom: 0, 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                   backgroundColor: 'var(--bg-primary)',
                   zIndex: 10,
                   borderRadius: '12px'
@@ -1049,9 +1048,9 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
                 <span style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>טוען תמונה…</span>
               </div>
             )}
-            <img 
-              src={task.image_path} 
-              alt="Task" 
+            <img
+              src={task.image_path}
+              alt="Task"
               onLoad={() => setImageLoaded(true)}
               style={task.use_image_loading_bar && !imageLoaded ? { display: 'none' } : {}}
             />
