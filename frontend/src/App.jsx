@@ -370,12 +370,21 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
           <div className="new-icon">＋</div>
           <span>הקמת פרויקט חדש</span>
         </div>
-        {projects.map((p) => (
+        {projects.map((p) => {
+          const hasError = !!p.init_error;
+          const hasTasks = (p.rows_remaining || 0) > 0;
+          // Block entry only if error AND no tasks loaded at all
+          const isBlocked = p.is_finished || (hasError && !hasTasks);
+          return (
           <div
             key={p.id}
-            className={`project-card ${p.is_finished ? 'finished' : ''} ${p.init_error ? 'error' : ''}`}
-            onClick={() => !p.is_finished && !p.init_error && onSelect(p)}
-            style={{ position: 'relative', border: p.init_error ? '1px solid #ff4d4f' : '' }}
+            className={`project-card ${p.is_finished ? 'finished' : ''}`}
+            onClick={() => !isBlocked && onSelect(p)}
+            style={{
+              position: 'relative',
+              border: hasError ? '1px solid #ff4d4f' : '',
+              cursor: isBlocked ? 'default' : 'pointer',
+            }}
           >
             {/* Action buttons area */}
             <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px' }}>
@@ -394,25 +403,35 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
                 🗑️
               </button>
             </div>
-            
+
             <h3>{p.name}</h3>
             <div className="project-meta">
               <span>חוקר אחראי: {p.owner}</span>
-              {p.init_error ? (
+              {hasError && (
                 <span style={{ color: '#ff4d4f', fontWeight: 'bold', marginTop: '4px', display: 'block' }}>
                   ⚠️ שגיאת גישה לקישור (פרטי / לא חוקי)
                 </span>
-              ) : (
-                <span>{p.is_finished ? 'המחקר הושלם' : `משימות נותרות: ${p.rows_remaining || 0}`}</span>
               )}
+              {!p.is_finished && (
+                <span style={{ marginTop: hasError ? '2px' : undefined, display: hasError ? 'block' : undefined }}>
+                  {hasTasks ? `משימות נותרות: ${p.rows_remaining}` : (hasError ? 'אין משימות זמינות' : 'המחקר הושלם')}
+                </span>
+              )}
+              {p.is_finished && <span>המחקר הושלם</span>}
             </div>
-            {!p.init_error && (
+            {!hasError && (
               <span className={`badge ${p.is_finished ? 'badge-done' : `badge-${p.workflow_type.toLowerCase()}`}`}>
                 {p.is_finished ? '✓ הושלם' : `תהליך ${p.workflow_type}`}
               </span>
             )}
+            {hasError && hasTasks && (
+              <span className={`badge badge-${p.workflow_type.toLowerCase()}`}>
+                {`תהליך ${p.workflow_type}`}
+              </span>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -630,6 +649,9 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const [contentType, setContentType] = useState(initialData?.custom_schema?.content_type || 'both');
   const [customSteps, setCustomSteps] = useState(initialData?.custom_schema?.steps || []);
 
+  // Per-source errors from the backend (source_path -> error message)
+  const sourceErrors = initialData?.source_errors || {};
+
   // CSV sources — support csv_sources (new array) or source_csv (legacy single string)
   const initialSources = initialData?.csv_sources ??
     (initialData?.source_csv ? [initialData.source_csv] : []);
@@ -753,17 +775,24 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
           {/* List of already-added sources */}
           {csvSources.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
-              {csvSources.map((src, idx) => (
+              {csvSources.map((src, idx) => {
+                const srcError = sourceErrors[src];
+                return (
                 <div key={idx} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '8px 12px',
-                  background: 'rgba(63,185,80,0.08)',
-                  border: '1px solid rgba(63,185,80,0.25)',
+                  background: srcError ? 'rgba(255,77,79,0.08)' : 'rgba(63,185,80,0.08)',
+                  border: srcError ? '1px solid rgba(255,77,79,0.4)' : '1px solid rgba(63,185,80,0.25)',
                   borderRadius: '8px',
                   fontSize: '0.88rem',
                 }}>
-                  <span style={{ color: 'var(--accent-success)' }}>
-                    ✓ {sourceLabels[src] || getSourceLabel(src)}
+                  <span style={{ color: srcError ? '#ff4d4f' : 'var(--accent-success)' }}>
+                    {srcError ? '⚠️' : '✓'} {sourceLabels[src] || getSourceLabel(src)}
+                    {srcError && (
+                      <span style={{ display: 'block', fontSize: '0.78rem', opacity: 0.8, fontWeight: 400, marginTop: '2px' }}>
+                        שגיאת גישה (פרטי / לא חוקי)
+                      </span>
+                    )}
                   </span>
                   <button
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
@@ -771,7 +800,8 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                     title="הסר קובץ"
                   >✕</button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -1125,7 +1155,7 @@ function DynamicWorkflow({ config, onSubmit }) {
       {/* Progress horizontal line for multi-step tasks */}
       {config.steps.length > 1 && (
         <div className="steps-indicator">
-          {config.steps.map((s, idx) => (
+          {config.steps.map((_s, idx) => (
             <React.Fragment key={idx}>
               <div className={`step-dot ${stepIndex === idx ? 'active' : stepIndex > idx ? 'done' : ''}`}>
                 {stepIndex > idx ? '✓' : idx + 1}

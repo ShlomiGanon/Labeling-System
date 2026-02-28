@@ -88,13 +88,14 @@ def get_engine(project: dict) -> LabelingEngine:
         master_path = os.path.join(BASE_DIR, project["master_csv"])
         engine = LabelingEngine(storage, master_path)
         engine.init_error = None
+        engine.source_errors = {}  # maps source_path -> error message
 
         # Pre-load all source files into the engine queue.
         # For multi-source projects each source gets its own output file so annotations
         # are kept separate. Single-source projects use master_path directly (backward compat).
         multi_source = len(raw_sources) > 1
-        try:
-            for source_path in raw_sources:
+        for source_path in raw_sources:
+            try:
                 if is_remote:
                     per_master = _derive_source_master(master_path, source_path) if multi_source else None
                     engine.load_source(source_path, master_path=per_master)
@@ -106,10 +107,14 @@ def get_engine(project: dict) -> LabelingEngine:
                     else:
                         msg = f"Source CSV not found at: {full_source_path}"
                         logger.warning(msg)
-                        engine.init_error = msg
-        except Exception as e:
-            logger.error(f"Error loading source data for project {pid}: {e}")
-            engine.init_error = str(e)
+                        engine.source_errors[source_path] = msg
+            except Exception as e:
+                msg = str(e)
+                logger.error(f"Error loading source '{source_path}' for project {pid}: {msg}")
+                engine.source_errors[source_path] = msg
+
+        if engine.source_errors:
+            engine.init_error = "; ".join(engine.source_errors.values())
 
         # Stores the initialized engine in the global registry.
         # Returns None.

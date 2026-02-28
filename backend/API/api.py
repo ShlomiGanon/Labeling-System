@@ -190,6 +190,8 @@ def list_projects():
             # Returns the error string or None.
             if getattr(engine, "init_error", None):
                 proj_summary["init_error"] = engine.init_error
+            if getattr(engine, "source_errors", None):
+                proj_summary["source_errors"] = engine.source_errors
                 
             result.append(proj_summary)
         except Exception as e:
@@ -489,9 +491,9 @@ def get_task(project_id: str):
     # Returns a LabelingEngine object.
     engine = get_engine(project)
     
-    # Reports any critical data loading errors encountered during engine startup.
-    # Returns an error string or None.
-    if getattr(engine, "init_error", None):
+    # Block only if ALL sources failed (no tasks were loaded at all).
+    # If some sources loaded successfully, allow the user to work on available tasks.
+    if getattr(engine, "init_error", None) and engine.get_queue_size() == 0 and engine.get_active_tasks_count() == 0:
         return jsonify({"error": f"Data Loading Error: {engine.init_error}"}), 500
 
     # Requests the next unassigned row from the engine's internal queue.
