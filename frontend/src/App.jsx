@@ -662,7 +662,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const [manualInput, setManualInput] = useState('');
   const [manualMsg, setManualMsg] = useState('');       // '' | success text | error text
   const [manualMsgType, setManualMsgType] = useState('success'); // 'success' | 'error'
-  const [sourceLabels, setSourceLabels] = useState({});  // raw URL → display label
+  const [sourceLabels, setSourceLabels] = useState(initialData?.source_labels || {});  // raw URL → display label
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -733,6 +733,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
     const payload = {
       name,
       csv_sources: csvSources,
+      source_labels: sourceLabels,
       owner: initialData?.owner,
     };
 

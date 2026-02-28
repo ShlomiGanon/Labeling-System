@@ -318,6 +318,10 @@ def create_project():
         "master_csv":    master_csv,
     }
 
+    source_labels = data.get("source_labels")
+    if source_labels and isinstance(source_labels, dict):
+        project["source_labels"] = source_labels
+
     if custom_schema:
         # Attaches the custom UI blueprint to the project if applicable.
         # Returns None.
@@ -379,6 +383,13 @@ def update_project(project_id):
         # Removes the custom schema if the project is being reverted to a preset workflow.
         # Returns None.
         project.pop("custom_schema", None)
+
+    if "source_labels" in data:
+        labels = data["source_labels"]
+        if isinstance(labels, dict) and labels:
+            project["source_labels"] = labels
+        else:
+            project.pop("source_labels", None)
     
     source_changed = False
     if "csv_sources" in data:
