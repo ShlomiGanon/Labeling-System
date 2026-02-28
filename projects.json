@@ -1,42 +1,17 @@
 {
   "projects": [
     {
-      "id": "4c87b8f2-2919-4c3f-a9da-0d5ef98dbad4",
-      "name": "שנויי",
-      "owner": "ofek",
-      "workflow_type": "A",
-      "csv_sources": [
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
-      ],
-      "master_csv": "backend/data/master_שנויי.csv",
-      "source_labels": {
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - אוק בן"
-      }
-    },
-    {
-      "id": "bcbb4fc2-4730-454f-8aa3-f8e30864111f",
-      "name": "נה נה נה",
-      "owner": "ofek",
-      "workflow_type": "A",
-      "csv_sources": [
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
-      ],
-      "master_csv": "backend/data/master_נה_נה_נה.csv",
-      "source_labels": {
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - אופק גבר"
-      }
-    },
-    {
-      "id": "00d9889e-6d59-46c4-8437-32d92be044fd",
-      "name": "גיגי",
+      "id": "e16df585-94f7-4b29-a47d-90505f216437",
+      "name": "דידי",
       "owner": "אופק",
       "workflow_type": "A",
       "csv_sources": [
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view",
+        "backend/data/AMZN_X_full.csv"
       ],
-      "master_csv": "backend/data/master_גיגי.csv",
+      "master_csv": "backend/data/master_דידי.csv",
       "source_labels": {
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - אופק"
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - קובץ אופק"
       }
     }
   ]

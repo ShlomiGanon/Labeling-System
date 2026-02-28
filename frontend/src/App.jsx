@@ -668,6 +668,11 @@ function getProjectErrorLabel(project) {
   return 'חלק ממקורות הפרויקט לא נטענו';
 }
 
+function getProjectSourceDisplayName(project, sourcePath) {
+  if (!sourcePath) return '';
+  return project?.source_labels?.[sourcePath] || getSourceLabel(sourcePath);
+}
+
 // ---------------------------------------------------------------------------
 // ProjectFormScreen – handles both creating and editing projects
 // ---------------------------------------------------------------------------
@@ -1078,7 +1083,7 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
             <span className="info-chip">פרויקט מחקרי | תהליך {project.workflow_type}</span>
             {task?.source_csv && (
               <span className="info-chip" style={{ marginRight: '6px' }}>
-                📄 {getSourceLabel(task.source_csv)}
+                📄 {getProjectSourceDisplayName(project, task.source_csv)}
               </span>
             )}
           </div>
