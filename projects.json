@@ -1,3 +1,30 @@
 {
-  "projects": []
+  "projects": [
+    {
+      "id": "4c87b8f2-2919-4c3f-a9da-0d5ef98dbad4",
+      "name": "שנויי",
+      "owner": "ofek",
+      "workflow_type": "A",
+      "csv_sources": [
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
+      ],
+      "master_csv": "backend/data/master_שנויי.csv",
+      "source_labels": {
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - אוק בן"
+      }
+    },
+    {
+      "id": "bcbb4fc2-4730-454f-8aa3-f8e30864111f",
+      "name": "נה נה נה",
+      "owner": "ofek",
+      "workflow_type": "A",
+      "csv_sources": [
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
+      ],
+      "master_csv": "backend/data/master_נה_נה_נה.csv",
+      "source_labels": {
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - אופק גבר"
+      }
+    }
+  ]
 }
