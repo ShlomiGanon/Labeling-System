@@ -5,6 +5,7 @@ API Blueprint definitions for the Labeling System.
 This file handles the translation of HTTP requests into backend logic.
 """
 
+import csv
 import json
 import os
 import uuid
@@ -716,6 +717,32 @@ def submit_task(project_id: str):
 # Manager Dashboard Endpoints
 # ---------------------------------------------------------------------------
 
+def _aggregate_master_stats(master_paths: list) -> tuple:
+    """Read labeled rows from master CSVs, dedupe by row_id, return (completed_count, {labeler: count})."""
+    seen_ids = set()
+    completed_count = 0
+    contributors = {}
+    for path in master_paths:
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, mode="r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    rid = str(row.get("row_id") or "").strip()
+                    if rid:
+                        if rid in seen_ids:
+                            continue
+                        seen_ids.add(rid)
+                    completed_count += 1
+                    labeler = (row.get("labeler_name") or "").strip()
+                    if labeler:
+                        contributors[labeler] = contributors.get(labeler, 0) + 1
+        except Exception as e:
+            logger.error(f"Error reading master stats from {path}: {e}")
+    return completed_count, contributors
+
+
 # Returns an overview of all projects owned by the current user, including
 # aggregate statistics and a list of downloadable master CSV files per project.
 # Returns a JSON object with stats and a list of project summaries.
@@ -786,6 +813,28 @@ def manager_dashboard():
                         "exists": os.path.isfile(per_master),
                     })
 
+            # Aggregate completed row stats and contributor breakdown.
+            if multi_source:
+                masters_for_stats = []
+                for src in csv_sources:
+                    full_src = src if (src.startswith("http://") or src.startswith("https://")) else os.path.join(BASE_DIR, src)
+                    masters_for_stats.append(_derive_source_master(full_master, full_src))
+            else:
+                masters_for_stats = [full_master]
+            proj_completed, proj_contributors = _aggregate_master_stats(masters_for_stats)
+        else:
+            proj_completed, proj_contributors = 0, {}
+
+        proj_remaining = rows_remaining + active_tasks_count
+        proj_total = proj_completed + proj_remaining
+        proj_completed_pct = round(proj_completed / proj_total * 100, 1) if proj_total > 0 else 0.0
+        proj_remaining_pct = round(100.0 - proj_completed_pct, 1) if proj_total > 0 else 100.0
+        sorted_contributors = sorted(
+            [{"name": k, "count": v, "pct": round(v / proj_completed * 100, 1) if proj_completed > 0 else 0.0}
+             for k, v in proj_contributors.items()],
+            key=lambda x: -x["count"]
+        )
+
         result.append({
             "id":                 p["id"],
             "name":               p["name"],
@@ -794,6 +843,12 @@ def manager_dashboard():
             "active_tasks":       active_tasks_count,
             "is_finished":        is_finished,
             "downloadable_files": downloadable,
+            "completed_count":    proj_completed,
+            "remaining_count":    proj_remaining,
+            "total_tasks":        proj_total,
+            "completed_pct":      proj_completed_pct,
+            "remaining_pct":      proj_remaining_pct,
+            "contributors":       sorted_contributors,
         })
 
     return jsonify({

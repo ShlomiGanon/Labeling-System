@@ -155,6 +155,11 @@ export const translations = {
       noMasterYet: 'טרם נוצר',
       loadFailed: 'טעינת לוח הבקרה נכשלה',
       downloadError: 'הורדה נכשלה: {msg}',
+      completed: 'הושלם',
+      remaining: 'נותר',
+      tasks: 'משימות',
+      noContributorsYet: 'טרם שולחו תיוגים',
+      contributionByLabeler: 'תרומה לפי מתייג:',
       stats: {
         totalProjects: 'סה״כ פרויקטים',
         active: 'פעילים',
@@ -320,6 +325,11 @@ export const translations = {
       noMasterYet: 'Not yet created',
       loadFailed: 'Failed to load dashboard',
       downloadError: 'Download failed: {msg}',
+      completed: 'Completed',
+      remaining: 'Remaining',
+      tasks: 'tasks',
+      noContributorsYet: 'No labels submitted yet',
+      contributionByLabeler: 'Contribution by labeler:',
       stats: {
         totalProjects: 'Total Projects',
         active: 'Active',

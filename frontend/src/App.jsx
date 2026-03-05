@@ -1342,6 +1342,36 @@ function DynamicField({ field, value, onChange }) {
 }
 
 // ---------------------------------------------------------------------------
+// DonutChart – pure SVG progress ring, no external library
+// ---------------------------------------------------------------------------
+
+function DonutChart({ completedPct, totalTasks, t }) {
+  const r = 38, cx = 50, cy = 50, strokeW = 10;
+  const circ = 2 * Math.PI * r;
+  const completedArc = completedPct > 0 ? (completedPct / 100) * circ : 0;
+  return (
+    <svg width="100" height="100" viewBox="0 0 100 100" style={{ flexShrink: 0 }} aria-hidden="true">
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeW} />
+      {completedArc > 0 && (
+        <circle
+          cx={cx} cy={cy} r={r} fill="none"
+          stroke="#58a6ff" strokeWidth={strokeW}
+          strokeDasharray={`${completedArc} ${circ}`}
+          transform={`rotate(-90, ${cx}, ${cy})`}
+          strokeLinecap="butt"
+        />
+      )}
+      <text x={cx} y={cy - 5} textAnchor="middle" fill="var(--text-primary)" fontSize="15" fontWeight="700" fontFamily="system-ui,sans-serif">
+        {totalTasks}
+      </text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="9" fontFamily="system-ui,sans-serif">
+        {t('manager.tasks')}
+      </text>
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ManagerDashboard – project overview + master CSV downloads for the owner
 // ---------------------------------------------------------------------------
 
@@ -1452,6 +1482,53 @@ function ManagerDashboard({ dashboardData, error, onBack }) {
                     ? t('projects.badgeDone')
                     : t('projects.badgeWorkflow', { type: p.workflow_type })}
                 </span>
+              </div>
+
+              {/* Progress visualization */}
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '14px' }}>
+                <DonutChart completedPct={p.completed_pct ?? 0} totalTasks={p.total_tasks ?? 0} t={t} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#58a6ff' }}>
+                        {p.completed_count ?? 0}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginInlineStart: '5px' }}>
+                        {t('manager.completed')} ({p.completed_pct ?? 0}%)
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)' }}>
+                        {p.remaining_count ?? 0}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginInlineStart: '5px' }}>
+                        {t('manager.remaining')} ({p.remaining_pct ?? 0}%)
+                      </span>
+                    </div>
+                  </div>
+                  {(p.contributors || []).length > 0 ? (
+                    <div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        {t('manager.contributionByLabeler')}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                        {(p.contributors || []).map((c) => (
+                          <span key={c.name} style={{
+                            fontSize: '0.78rem', padding: '2px 8px',
+                            background: 'rgba(88,166,255,0.1)', borderRadius: '4px',
+                            border: '1px solid rgba(88,166,255,0.2)',
+                          }}>
+                            {c.name}: {c.count} ({c.pct}%)
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {t('manager.noContributorsYet')}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Download buttons */}

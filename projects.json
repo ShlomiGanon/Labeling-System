@@ -13,6 +13,19 @@
       "source_labels": {
         "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - קובץ אופק"
       }
+    },
+    {
+      "id": "c9aff378-fec2-4501-8003-2a39bc48fbd0",
+      "name": "דוגמא של אופק",
+      "owner": "אופק",
+      "workflow_type": "A",
+      "csv_sources": [
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
+      ],
+      "master_csv": "backend/data/master_דוגמא_של_אופק.csv",
+      "source_labels": {
+        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - ניסיון אופק"
+      }
     }
   ]
 }
