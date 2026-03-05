@@ -24,6 +24,8 @@ export default function App() {
   const [rowsRemaining, setRowsRemaining] = useState(0);
   const [isProjectFinished, setIsProjectFinished] = useState(false);
   const [error, setError] = useState('');
+  const [managerDashboard, setManagerDashboard] = useState(null);
+  const [dashboardError, setDashboardError] = useState('');
 
   // ---------------------------------------------------------------------------
   // Login & Session logic
@@ -57,6 +59,19 @@ export default function App() {
     await api.logout();
     setUser(null);
     setScreen('login');
+  };
+
+  const handleGoToDashboard = async () => {
+    setScreen('loading');
+    setDashboardError('');
+    const { ok, data } = await api.getManagerDashboard();
+    if (ok) {
+      setManagerDashboard(data);
+    } else {
+      setDashboardError(data.error || t('manager.loadFailed'));
+      setManagerDashboard(null);
+    }
+    setScreen('manager');
   };
 
   // ---------------------------------------------------------------------------
@@ -198,6 +213,14 @@ export default function App() {
             error={error}
           />
         );
+      case 'manager':
+        return (
+          <ManagerDashboard
+            dashboardData={managerDashboard}
+            error={dashboardError}
+            onBack={fetchProjects}
+          />
+        );
       default:
         return <div>Unknown screen</div>;
     }
@@ -206,7 +229,7 @@ export default function App() {
   return (
     <div className="app-wrapper">
       {user
-        ? <Topbar user={user} onLogout={handleLogout} />
+        ? <Topbar user={user} onLogout={handleLogout} onDashboard={handleGoToDashboard} />
         : <div className="lang-bar"><LanguageSwitcher /></div>
       }
       {renderScreen()}
@@ -243,7 +266,7 @@ function LoadingScreen() {
   );
 }
 
-function Topbar({ user, onLogout }) {
+function Topbar({ user, onLogout, onDashboard }) {
   const { t } = useT();
   return (
     <div className="topbar">
@@ -260,6 +283,13 @@ function Topbar({ user, onLogout }) {
         <LanguageSwitcher />
         <div className="user-badge">
           <span>{t('topbar.connectedAs')} <strong>{user}</strong></span>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '7px 16px', fontSize: '0.85rem' }}
+            onClick={onDashboard}
+          >
+            {t('manager.myDashboard')}
+          </button>
           <button
             className="btn btn-secondary"
             style={{ padding: '7px 16px', fontSize: '0.85rem' }}
@@ -1308,6 +1338,165 @@ function DynamicField({ field, value, onChange }) {
       <label>{field.label}</label>
       {renderInput()}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ManagerDashboard – project overview + master CSV downloads for the owner
+// ---------------------------------------------------------------------------
+
+function ManagerDashboard({ dashboardData, error, onBack }) {
+  const { t } = useT();
+  const [downloadError, setDownloadError] = useState('');
+  const [downloadingKey, setDownloadingKey] = useState(null);
+
+  const stats = dashboardData?.stats || {};
+  const projects = dashboardData?.projects || [];
+
+  const handleDownload = async (projectId, source, filename) => {
+    const key = `${projectId}__${source ?? 'main'}`;
+    setDownloadingKey(key);
+    setDownloadError('');
+    const result = await api.downloadMasterFile(projectId, source);
+    setDownloadingKey(null);
+    if (!result.ok) {
+      setDownloadError(t('manager.downloadError', { msg: result.error }));
+      return;
+    }
+    const blobUrl = URL.createObjectURL(result.blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = result.filename || filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  };
+
+  const STAT_CARDS = [
+    { label: t('manager.stats.totalProjects'), value: stats.total ?? 0 },
+    { label: t('manager.stats.active'),        value: stats.active ?? 0 },
+    { label: t('manager.stats.completed'),     value: stats.completed ?? 0 },
+    { label: t('manager.stats.rowsRemaining'), value: stats.rows_remaining ?? 0 },
+  ];
+
+  return (
+    <section className="screen active" style={{ width: '100%', maxWidth: '900px' }}>
+      <button
+        className="btn btn-secondary"
+        style={{ marginBottom: '20px', fontSize: '0.9rem' }}
+        onClick={onBack}
+      >
+        {t('manager.backToProjects')}
+      </button>
+
+      <div style={{ marginBottom: '24px' }}>
+        <h1>{t('manager.dashboardTitle')}</h1>
+        <p className="subtitle">{t('manager.dashboardSubtitle')}</p>
+      </div>
+
+      {error && <div className="alert alert-error">{error}</div>}
+      {downloadError && (
+        <div className="alert alert-error" style={{ marginBottom: '16px' }}>
+          {downloadError}
+        </div>
+      )}
+
+      {/* Stats bar */}
+      {dashboardData && (
+        <div style={{ display: 'flex', gap: '14px', marginBottom: '28px', flexWrap: 'wrap' }}>
+          {STAT_CARDS.map(({ label, value }) => (
+            <div
+              key={label}
+              className="card"
+              style={{ flex: '1 1 140px', textAlign: 'center', padding: '18px 12px' }}
+            >
+              <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)', lineHeight: 1 }}>
+                {value}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                {label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Per-project rows */}
+      {dashboardData && projects.length === 0 && (
+        <p style={{ color: 'var(--text-secondary)' }}>{t('manager.noProjects')}</p>
+      )}
+
+      {dashboardData && projects.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {projects.map((p) => (
+            <div key={p.id} className="card" style={{ padding: '18px 20px' }}>
+              {/* Project header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{p.name}</h3>
+                  <div style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    {p.is_finished
+                      ? t('projects.completed')
+                      : p.rows_remaining > 0
+                        ? t('projects.tasksRemaining', { count: p.rows_remaining })
+                        : t('projects.noTasksAvailable')}
+                  </div>
+                </div>
+                <span
+                  className={`badge ${p.is_finished
+                    ? 'badge-done'
+                    : `badge-${(p.workflow_type || '').toLowerCase()}`}`}
+                >
+                  {p.is_finished
+                    ? t('projects.badgeDone')
+                    : t('projects.badgeWorkflow', { type: p.workflow_type })}
+                </span>
+              </div>
+
+              {/* Download buttons */}
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                {t('manager.downloadFiles')}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {(p.downloadable_files || []).map((file, idx) => {
+                  const key = `${p.id}__${file.source ?? 'main'}`;
+                  const isLoading = downloadingKey === key;
+                  return file.exists ? (
+                    <button
+                      key={idx}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.82rem', padding: '6px 14px' }}
+                      onClick={() => handleDownload(p.id, file.source, file.label)}
+                      disabled={isLoading}
+                      title={file.label}
+                    >
+                      {isLoading ? '…' : '↓'} {file.label}
+                    </button>
+                  ) : (
+                    <span
+                      key={idx}
+                      title={file.label}
+                      style={{
+                        fontSize: '0.82rem',
+                        color: 'var(--text-muted)',
+                        padding: '6px 14px',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        display: 'inline-block',
+                        opacity: 0.6,
+                      }}
+                    >
+                      {file.label} ({t('manager.noMasterYet')})
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -9,11 +9,11 @@ import json
 import os
 import uuid
 import logging
-from flask import Blueprint, jsonify, request, session, send_from_directory
+from flask import Blueprint, jsonify, request, session, send_from_directory, send_file
 from werkzeug.utils import secure_filename
 
 # Local imports from our structured backend
-from CORE.server import app, PROJECTS_FILE, get_engine
+from CORE.server import app, PROJECTS_FILE, get_engine, BASE_DIR, _derive_source_master
 from CORE.persistence import load_projects, save_projects
 import CORE.workflows as workflows
 from CORE.storage import LocalStorage
@@ -710,3 +710,175 @@ def submit_task(project_id: str):
         "rows_remaining": engine.get_queue_size(),
         "is_finished":    engine.is_finished(),
     })
+
+
+# ---------------------------------------------------------------------------
+# Manager Dashboard Endpoints
+# ---------------------------------------------------------------------------
+
+# Returns an overview of all projects owned by the current user, including
+# aggregate statistics and a list of downloadable master CSV files per project.
+# Returns a JSON object with stats and a list of project summaries.
+@api_bp.route("/manager/dashboard", methods=["GET"])
+def manager_dashboard():
+    # Verifies the requester is an authenticated user.
+    # Returns a Flask response object or None.
+    auth_check = require_login()
+    if auth_check: return auth_check
+
+    user = current_user()
+    projects = load_projects(PROJECTS_FILE)
+
+    # Filter to only the projects owned by the current user.
+    owned = [p for p in projects if p.get("owner") == user]
+
+    result = []
+    total_rows_remaining = 0
+    active_count = 0
+    completed_count = 0
+
+    for p in owned:
+        try:
+            engine = get_engine(p)
+            rows_remaining = engine.get_queue_size()
+            active_tasks_count = engine.get_active_tasks_count()
+            is_finished = engine.is_finished()
+        except Exception:
+            rows_remaining = 0
+            active_tasks_count = 0
+            is_finished = False
+
+        if is_finished:
+            completed_count += 1
+        elif rows_remaining > 0 or active_tasks_count > 0:
+            active_count += 1
+        total_rows_remaining += rows_remaining
+
+        # Build the list of downloadable master files for this project.
+        downloadable = []
+        master_csv = p.get("master_csv", "")
+
+        if master_csv:
+            full_master = os.path.join(BASE_DIR, master_csv)
+            csv_sources = p.get("csv_sources") or (
+                [p["source_csv"]] if p.get("source_csv") else []
+            )
+            multi_source = len(csv_sources) > 1
+
+            # Main project master.
+            downloadable.append({
+                "label":  os.path.basename(master_csv),
+                "source": None,
+                "exists": os.path.isfile(full_master),
+            })
+
+            # Per-source masters (only generated for multi-source projects).
+            if multi_source:
+                for src in csv_sources:
+                    if src.startswith("http://") or src.startswith("https://"):
+                        full_src = src
+                    else:
+                        full_src = os.path.join(BASE_DIR, src)
+                    per_master = _derive_source_master(full_master, full_src)
+                    downloadable.append({
+                        "label":  os.path.basename(per_master),
+                        "source": src,
+                        "exists": os.path.isfile(per_master),
+                    })
+
+        result.append({
+            "id":                 p["id"],
+            "name":               p["name"],
+            "workflow_type":      p.get("workflow_type", ""),
+            "rows_remaining":     rows_remaining,
+            "active_tasks":       active_tasks_count,
+            "is_finished":        is_finished,
+            "downloadable_files": downloadable,
+        })
+
+    return jsonify({
+        "projects": result,
+        "stats": {
+            "total":          len(owned),
+            "active":         active_count,
+            "completed":      completed_count,
+            "rows_remaining": total_rows_remaining,
+        },
+    })
+
+
+# Serves a master CSV file for a project owned by the current user.
+# Accepts an optional `source` query parameter to select a per-source master.
+# Enforces ownership (403), path-traversal safety (403), and existence (404) checks.
+# Returns the CSV file as an attachment.
+@api_bp.route("/manager/download/<project_id>", methods=["GET"])
+def download_master(project_id: str):
+    auth_check = require_login()
+    if auth_check: return auth_check
+
+    user = current_user()
+    projects = load_projects(PROJECTS_FILE)
+    project = next((p for p in projects if p["id"] == project_id), None)
+
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    # Only the project owner may download its master files.
+    if project.get("owner") != user:
+        return jsonify({"error": "Forbidden: you do not own this project"}), 403
+
+    master_csv = project.get("master_csv", "")
+    if not master_csv:
+        return jsonify({"error": "No master CSV configured for this project"}), 404
+
+    source_param = request.args.get("source", "").strip()
+    full_master = os.path.join(BASE_DIR, master_csv)
+
+    if source_param:
+        # Early rejection of suspicious traversal/injection patterns.
+        # Checked before membership lookup so a crafted source cannot probe
+        # which sources belong to a project.
+        is_url = source_param.startswith("http://") or source_param.startswith("https://")
+        normalized_src = source_param.replace("\\", "/")
+        suspicious = (
+            "\x00" in source_param                          # null byte injection
+            or ".." in normalized_src                       # traversal component
+            or (not is_url and os.path.isabs(source_param)) # absolute FS path
+        )
+        if suspicious:
+            logger.warning(f"Suspicious source param blocked: {source_param!r}")
+            return jsonify({"error": "Forbidden: invalid source path"}), 403
+
+        # Validate the requested source is actually part of this project.
+        csv_sources = project.get("csv_sources") or (
+            [project["source_csv"]] if project.get("source_csv") else []
+        )
+        if source_param not in csv_sources:
+            return jsonify({"error": "Source not found in project"}), 404
+
+        if is_url:
+            full_src = source_param
+        else:
+            full_src = os.path.join(BASE_DIR, source_param)
+
+        target_path = _derive_source_master(full_master, full_src)
+    else:
+        target_path = full_master
+
+    # Path-traversal guard: resolved path must stay inside backend/data.
+    data_dir = os.path.realpath(os.path.join(BASE_DIR, "backend", "data"))
+    real_target = os.path.realpath(target_path)
+
+    if not real_target.startswith(data_dir + os.sep) and real_target != data_dir:
+        logger.warning(f"Path traversal attempt blocked: {real_target}")
+        return jsonify({"error": "Forbidden: invalid file path"}), 403
+
+    if not os.path.isfile(real_target):
+        return jsonify({"error": "File not found"}), 404
+
+    return send_file(
+        real_target,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=os.path.basename(real_target),
+    )

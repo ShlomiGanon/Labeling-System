@@ -145,6 +145,23 @@ export const translations = {
       projectSourceMixed: 'חלק ממקורות הפרויקט לא נטענו',
       unknownComponent: 'רכיב לא מוכר:',
     },
+    manager: {
+      myDashboard: 'לוח הבקרה שלי',
+      dashboardTitle: 'לוח בקרה מנהל',
+      dashboardSubtitle: 'סקירת הפרויקטים שבבעלותך והורדת קבצי CSV מאוחדים.',
+      backToProjects: '← חזרה לפרויקטים',
+      noProjects: 'אין פרויקטים בבעלותך.',
+      downloadFiles: 'הורדת קבצי מאסטר:',
+      noMasterYet: 'טרם נוצר',
+      loadFailed: 'טעינת לוח הבקרה נכשלה',
+      downloadError: 'הורדה נכשלה: {msg}',
+      stats: {
+        totalProjects: 'סה״כ פרויקטים',
+        active: 'פעילים',
+        completed: 'הושלמו',
+        rowsRemaining: 'שורות שנותרו',
+      },
+    },
   },
 
   en: {
@@ -292,6 +309,23 @@ export const translations = {
       projectSourceGdrive: 'Google Drive access error',
       projectSourceMixed: 'Some project sources could not be loaded',
       unknownComponent: 'Unknown Component:',
+    },
+    manager: {
+      myDashboard: 'My Dashboard',
+      dashboardTitle: 'Manager Dashboard',
+      dashboardSubtitle: 'Overview of your projects and download master CSV files.',
+      backToProjects: '← Back to Projects',
+      noProjects: 'You have no projects.',
+      downloadFiles: 'Download master files:',
+      noMasterYet: 'Not yet created',
+      loadFailed: 'Failed to load dashboard',
+      downloadError: 'Download failed: {msg}',
+      stats: {
+        totalProjects: 'Total Projects',
+        active: 'Active',
+        completed: 'Completed',
+        rowsRemaining: 'Rows Remaining',
+      },
     },
   },
 };

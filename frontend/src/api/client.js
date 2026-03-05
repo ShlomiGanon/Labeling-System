@@ -81,3 +81,48 @@ export const submitLabel = (projectId, payload) =>
 
 /** Get the UI schema/configuration for a project's workflow. */
 export const getProjectConfig = (projectId) => get(`/api/projects/${projectId}/config`)
+
+
+// ---------------------------------------------------------------------------
+// Manager Dashboard
+// ---------------------------------------------------------------------------
+
+/** Get manager dashboard data (owned projects + stats). */
+export const getManagerDashboard = () => get('/api/manager/dashboard')
+
+/**
+ * Build the URL for downloading a project's master CSV.
+ * Pass source = null for the main master, or the source path string for a per-source master.
+ */
+export const getMasterDownloadUrl = (projectId, source = null) => {
+  const base = `/api/manager/download/${projectId}`
+  return source ? `${base}?source=${encodeURIComponent(source)}` : base
+}
+
+/**
+ * Download a master CSV file, handling auth/permission errors in-app.
+ * Returns { ok: true, blob, filename } on success,
+ *         { ok: false, error: string }  on failure.
+ */
+export const downloadMasterFile = async (projectId, source = null) => {
+  const url = getMasterDownloadUrl(projectId, source)
+  try {
+    const res = await fetch(url, { credentials: 'include' })
+    if (!res.ok) {
+      try {
+        const data = await res.json()
+        return { ok: false, error: data.error || `HTTP ${res.status}` }
+      } catch {
+        return { ok: false, error: `HTTP ${res.status}` }
+      }
+    }
+    const blob = await res.blob()
+    // Prefer server-supplied filename from Content-Disposition.
+    const disposition = res.headers.get('Content-Disposition') || ''
+    const match = disposition.match(/filename[^;=\n]*=(['"]?)([^'";\n]+)\1/)
+    const filename = match ? match[2] : `master_${projectId}.csv`
+    return { ok: true, blob, filename }
+  } catch (err) {
+    return { ok: false, error: `Network error: ${err.message}` }
+  }
+}
