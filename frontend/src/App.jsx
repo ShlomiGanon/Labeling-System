@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as api from './api/client';
+import { useT } from './i18n/LanguageContext';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
 
 /**
  * Main App Component
@@ -12,6 +14,7 @@ import * as api from './api/client';
  * - 'task': The actual labeling screen for one row of data.
  */
 export default function App() {
+  const { t } = useT();
   const [screen, setScreen] = useState('loading');
   const [user, setUser] = useState(null);
   const [projects, setProjects] = useState([]);
@@ -27,7 +30,6 @@ export default function App() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    // When the page first loads, check if we are already logged in
     async function checkSession() {
       const { ok, data } = await api.getMe();
       if (ok && data.user_name) {
@@ -47,7 +49,7 @@ export default function App() {
       setUser(data.user_name);
       fetchProjects();
     } else {
-      setError(data.error || 'Login failed');
+      setError(data.error || t('errors.loginFailed'));
     }
   };
 
@@ -68,7 +70,7 @@ export default function App() {
       setProjects(data.projects);
       setScreen('projects');
     } else {
-      setError('Failed to load projects');
+      setError(t('errors.loadProjectsFailed'));
       setScreen('projects');
     }
   };
@@ -79,7 +81,7 @@ export default function App() {
     if (ok) {
       fetchProjects();
     } else {
-      setError(data.error || 'Failed to create project');
+      setError(data.error || t('errors.createProjectFailed'));
     }
   };
 
@@ -89,7 +91,7 @@ export default function App() {
     if (ok) {
       fetchProjects();
     } else {
-      setError(data.error || 'Failed to update project');
+      setError(data.error || t('errors.updateProjectFailed'));
     }
   };
 
@@ -98,7 +100,7 @@ export default function App() {
     if (ok) {
       setProjects(prev => prev.filter(p => p.id !== projectId));
     } else {
-      setError(data.error || 'שגיאה במחיקת הפרויקט');
+      setError(data.error || t('errors.deleteProjectFailed'));
     }
   };
 
@@ -124,14 +126,13 @@ export default function App() {
       }
       setScreen('task');
     } else {
-      setError(data.error || 'Failed to fetch task');
+      setError(data.error || t('errors.fetchTaskFailed'));
       setScreen('projects');
     }
   };
 
   const handleSubmitLabel = async (payload) => {
     setError('');
-    // Each label needs the row_id of what is being labeled
     const fullPayload = { ...payload, row_id: currentTask.row_id };
     const { ok, data } = await api.submitLabel(activeProject.id, fullPayload);
     if (ok) {
@@ -139,7 +140,7 @@ export default function App() {
       setIsProjectFinished(data.is_finished);
       setShowContinueDialog(true);
     } else {
-      setError(data.error || 'Failed to submit label');
+      setError(data.error || t('errors.submitLabelFailed'));
     }
   };
 
@@ -204,12 +205,10 @@ export default function App() {
 
   return (
     <div className="app-wrapper">
-      {user && (
-        <Topbar
-          user={user}
-          onLogout={handleLogout}
-        />
-      )}
+      {user
+        ? <Topbar user={user} onLogout={handleLogout} />
+        : <div className="lang-bar"><LanguageSwitcher /></div>
+      }
       {renderScreen()}
       {showContinueDialog && (
         <ContinueDialog
@@ -235,15 +234,17 @@ export default function App() {
 // ---------------------------------------------------------------------------
 
 function LoadingScreen() {
+  const { t } = useT();
   return (
     <div className="loading-state">
       <div className="spinner"></div>
-      <span>טוען נתונים…</span>
+      <span>{t('loading.data')}</span>
     </div>
   );
 }
 
 function Topbar({ user, onLogout }) {
+  const { t } = useT();
   return (
     <div className="topbar">
       <div className="logo">
@@ -253,44 +254,52 @@ function Topbar({ user, onLogout }) {
           <rect x="3" y="13" width="8" height="8" rx="2" fill="#58a6ff" opacity="0.5" />
           <rect x="13" y="13" width="8" height="8" rx="2" fill="#3fb950" opacity="0.8" />
         </svg>
-        מערכת התיוג
+        {t('app.name')}
       </div>
-      <div className="user-badge">
-        <span>מחובר כ: <strong>{user}</strong></span>
-        <button className="btn btn-secondary" style={{ padding: '7px 16px', fontSize: '0.85rem' }} onClick={onLogout}>
-          התנתקות
-        </button>
+      <div className="topbar-end">
+        <LanguageSwitcher />
+        <div className="user-badge">
+          <span>{t('topbar.connectedAs')} <strong>{user}</strong></span>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '7px 16px', fontSize: '0.85rem' }}
+            onClick={onLogout}
+          >
+            {t('topbar.logout')}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 function LoginScreen({ onLogin, error }) {
+  const { t } = useT();
   const [userName, setUserName] = useState('');
 
   return (
     <section className="screen active">
       <div style={{ textAlign: 'center', margin: '48px 0 36px' }}>
         <div style={{ fontSize: '3.5rem', marginBottom: '16px' }}>🏷️</div>
-        <h1>מערכת התיוג הרב-מודלית</h1>
-        <p className="subtitle">פלטפורמה לתיוג נתונים אקדמית ומקצועית</p>
+        <h1>{t('login.title')}</h1>
+        <p className="subtitle">{t('login.subtitle')}</p>
       </div>
       <div className="card">
-        <h2>כניסה למערכת</h2>
-        <p className="subtitle">אנא הזן את שמך המלא כדי להתחיל בתהליך התיוג.</p>
+        <h2>{t('login.cardTitle')}</h2>
+        <p className="subtitle">{t('login.cardSubtitle')}</p>
         {error && <div className="alert alert-error">{error}</div>}
         <div className="field-group">
-          <label>שם משתמש</label>
+          <label>{t('login.usernameLabel')}</label>
           <input
             type="text"
             value={userName}
             onChange={(e) => setUserName(e.target.value)}
-            placeholder='לדוגמה: פרופסור כהן'
+            placeholder={t('login.usernamePlaceholder')}
             onKeyDown={(e) => e.key === 'Enter' && onLogin(userName)}
           />
         </div>
         <button className="btn btn-primary btn-full" onClick={() => onLogin(userName)}>
-          כניסה למערכת
+          {t('login.submitBtn')}
         </button>
       </div>
     </section>
@@ -302,14 +311,15 @@ function LoginScreen({ onLogin, error }) {
 // ---------------------------------------------------------------------------
 
 function DeleteConfirmDialog({ project, onCancel, onConfirm }) {
+  const { t } = useT();
   return (
     <div className="dialog-overlay" onClick={onCancel}>
-      <div className="dialog-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px', textAlign: 'right' }}>
+      <div className="dialog-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px', textAlign: 'start' }}>
         <div className="dialog-icon">🗑️</div>
-        <h2>מחיקת פרויקט</h2>
+        <h2>{t('delete.title')}</h2>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '8px', fontSize: '0.95rem', lineHeight: 1.6 }}>
-          אתה עומד למחוק את הפרויקט <strong>{project.name}</strong>.
-          <br />איזו רמת מחיקה תרצה?
+          {t('delete.description')} <strong>{project.name}</strong>.
+          <br />{t('delete.question')}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
           <button
@@ -318,9 +328,9 @@ function DeleteConfirmDialog({ project, onCancel, onConfirm }) {
             onClick={() => onConfirm(true)}
           >
             <span style={{ fontSize: '1.2rem' }}>🗑️</span>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700 }}>מחק הכל</div>
-              <div style={{ fontSize: '0.78rem', opacity: 0.8, fontWeight: 400 }}>מוחק את הפרויקט + קובץ המקור + קובץ תוצאות (Master)</div>
+            <div style={{ textAlign: 'start' }}>
+              <div style={{ fontWeight: 700 }}>{t('delete.deleteAll')}</div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.8, fontWeight: 400 }}>{t('delete.deleteAllDesc')}</div>
             </div>
           </button>
           <button
@@ -329,13 +339,13 @@ function DeleteConfirmDialog({ project, onCancel, onConfirm }) {
             onClick={() => onConfirm(false)}
           >
             <span style={{ fontSize: '1.2rem' }}>📌</span>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700 }}>מחק רק את הפרויקט</div>
-              <div style={{ fontSize: '0.78rem', opacity: 0.8, fontWeight: 400 }}>מסיר את הפרויקט מהמסך – הקבצים נשארים כמו שהם</div>
+            <div style={{ textAlign: 'start' }}>
+              <div style={{ fontWeight: 700 }}>{t('delete.deleteProject')}</div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.8, fontWeight: 400 }}>{t('delete.deleteProjectDesc')}</div>
             </div>
           </button>
           <button className="btn btn-secondary" style={{ width: '100%' }} onClick={onCancel}>
-            ביטול
+            {t('delete.cancel')}
           </button>
         </div>
       </div>
@@ -344,6 +354,7 @@ function DeleteConfirmDialog({ project, onCancel, onConfirm }) {
 }
 
 function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, error }) {
+  const { t } = useT();
   const [deleteTarget, setDeleteTarget] = React.useState(null);
 
   const handleDeleteConfirm = (deleteFiles) => {
@@ -361,75 +372,76 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
         />
       )}
       <div style={{ marginBottom: '28px' }}>
-        <h1>בחר פרויקט למחקר</h1>
-        <p className="subtitle">בחר באחד מהפרויקטים הפעילים או הקם פרויקט מחקרי חדש.</p>
+        <h1>{t('projects.title')}</h1>
+        <p className="subtitle">{t('projects.subtitle')}</p>
       </div>
       {error && <div className="alert alert-error">{error}</div>}
       <div className="projects-grid">
         <div className="project-card new-project" onClick={onCreateNew}>
           <div className="new-icon">＋</div>
-          <span>הקמת פרויקט חדש</span>
+          <span>{t('projects.newProject')}</span>
         </div>
         {projects.map((p) => {
           const hasError = !!p.init_error;
           const hasTasks = (p.rows_remaining || 0) > 0;
-          // Block entry only if error AND no tasks loaded at all
           const isBlocked = p.is_finished || (hasError && !hasTasks);
           return (
-          <div
-            key={p.id}
-            className={`project-card ${p.is_finished ? 'finished' : ''}`}
-            onClick={() => !isBlocked && onSelect(p)}
-            style={{
-              position: 'relative',
-              border: hasError ? '1px solid #ff4d4f' : '',
-              cursor: isBlocked ? 'default' : 'pointer',
-            }}
-          >
-            {/* Action buttons area */}
-            <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', gap: '8px' }}>
-              <button
-                className="project-action-btn edit-btn"
-                title="ערוך פרויקט"
-                onClick={(e) => { e.stopPropagation(); onEdit(p); }}
-              >
-                ✏️
-              </button>
-              <button
-                className="project-action-btn delete-btn"
-                title="מחק פרויקט"
-                onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
-              >
-                🗑️
-              </button>
-            </div>
+            <div
+              key={p.id}
+              className={`project-card ${p.is_finished ? 'finished' : ''}`}
+              onClick={() => !isBlocked && onSelect(p)}
+              style={{
+                position: 'relative',
+                border: hasError ? '1px solid #ff4d4f' : '',
+                cursor: isBlocked ? 'default' : 'pointer',
+              }}
+            >
+              {/* Action buttons area */}
+              <div style={{ position: 'absolute', top: '12px', insetInlineEnd: '12px', display: 'flex', gap: '8px' }}>
+                <button
+                  className="project-action-btn edit-btn"
+                  title={t('projects.editTitle')}
+                  onClick={(e) => { e.stopPropagation(); onEdit(p); }}
+                >
+                  ✏️
+                </button>
+                <button
+                  className="project-action-btn delete-btn"
+                  title={t('projects.deleteTitle')}
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+                >
+                  🗑️
+                </button>
+              </div>
 
-            <h3>{p.name}</h3>
-            <div className="project-meta">
-              <span>חוקר אחראי: {p.owner}</span>
-              {hasError && (
-                <span style={{ color: '#ff4d4f', fontWeight: 'bold', marginTop: '4px', display: 'block' }}>
-                  ⚠️ {getProjectErrorLabel(p)}
+              <h3>{p.name}</h3>
+              <div className="project-meta">
+                <span>{t('projects.researcher')} {p.owner}</span>
+                {hasError && (
+                  <span style={{ color: '#ff4d4f', fontWeight: 'bold', marginTop: '4px', display: 'block' }}>
+                    ⚠️ {getProjectErrorLabel(p, t)}
+                  </span>
+                )}
+                {!p.is_finished && (
+                  <span style={{ marginTop: hasError ? '2px' : undefined, display: hasError ? 'block' : undefined }}>
+                    {hasTasks
+                      ? t('projects.tasksRemaining', { count: p.rows_remaining })
+                      : (hasError ? t('projects.noTasksAvailable') : t('projects.completed'))}
+                  </span>
+                )}
+                {p.is_finished && <span>{t('projects.completed')}</span>}
+              </div>
+              {!hasError && (
+                <span className={`badge ${p.is_finished ? 'badge-done' : `badge-${p.workflow_type.toLowerCase()}`}`}>
+                  {p.is_finished ? t('projects.badgeDone') : t('projects.badgeWorkflow', { type: p.workflow_type })}
                 </span>
               )}
-              {!p.is_finished && (
-                <span style={{ marginTop: hasError ? '2px' : undefined, display: hasError ? 'block' : undefined }}>
-                  {hasTasks ? `משימות נותרות: ${p.rows_remaining}` : (hasError ? 'אין משימות זמינות' : 'המחקר הושלם')}
+              {hasError && hasTasks && (
+                <span className={`badge badge-${p.workflow_type.toLowerCase()}`}>
+                  {t('projects.badgeWorkflow', { type: p.workflow_type })}
                 </span>
               )}
-              {p.is_finished && <span>המחקר הושלם</span>}
             </div>
-            {!hasError && (
-              <span className={`badge ${p.is_finished ? 'badge-done' : `badge-${p.workflow_type.toLowerCase()}`}`}>
-                {p.is_finished ? '✓ הושלם' : `תהליך ${p.workflow_type}`}
-              </span>
-            )}
-            {hasError && hasTasks && (
-              <span className={`badge badge-${p.workflow_type.toLowerCase()}`}>
-                {`תהליך ${p.workflow_type}`}
-              </span>
-            )}
-          </div>
           );
         })}
       </div>
@@ -441,14 +453,16 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
 // Workflow Builder Helper – used inside NewProjectScreen
 // ---------------------------------------------------------------------------
 
-const FIELD_TYPES = [
-  { value: 'input_text', label: 'שדה טקסט חופשי' },
-  { value: 'textarea', label: 'תיבת טקסט (textarea)' },
-  { value: 'button_group', label: 'כפתורי בחירה' },
-  { value: 'select', label: 'רשימה נגללת' },
-];
-
 function WorkflowBuilder({ steps, onChange }) {
+  const { t } = useT();
+
+  const FIELD_TYPES = [
+    { value: 'input_text', label: t('workflow.typeInputText') },
+    { value: 'textarea', label: t('workflow.typeTextarea') },
+    { value: 'button_group', label: t('workflow.typeButtonGroup') },
+    { value: 'select', label: t('workflow.typeSelect') },
+  ];
+
   // Stores raw comma-separated text while the user is typing,
   // so the comma character itself isn't immediately consumed by the parser.
   const [optionsTexts, setOptionsTexts] = useState({});
@@ -489,22 +503,18 @@ function WorkflowBuilder({ steps, onChange }) {
     onChange(updated);
   };
 
-  // While typing: store raw text locally (allows commas mid-sentence)
   const handleOptionsChange = (si, fi, val) => {
     setOptionsTexts(prev => ({ ...prev, [`${si}_${fi}`]: val }));
   };
 
-  // On blur: parse raw text into array and push to real state
   const handleOptionsBlur = (si, fi) => {
     const key = `${si}_${fi}`;
     const raw = optionsTexts[key] ?? (steps[si]?.fields[fi]?.options || []).join(', ');
     const opts = raw.split(',').map(o => o.trim()).filter(Boolean);
     updateField(si, fi, 'options', opts);
-    // Remove from local cache so value is now driven by real state
     setOptionsTexts(prev => { const c = { ...prev }; delete c[key]; return c; });
   };
 
-  // Decide what value to show in the options input
   const getOptionsText = (si, fi, field) => {
     const key = `${si}_${fi}`;
     return key in optionsTexts ? optionsTexts[key] : (field.options || []).join(', ');
@@ -521,18 +531,20 @@ function WorkflowBuilder({ steps, onChange }) {
           position: 'relative'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <span style={{ fontWeight: 600, color: 'var(--accent)', fontSize: '0.9rem' }}>שלב {si + 1}</span>
+            <span style={{ fontWeight: 600, color: 'var(--accent)', fontSize: '0.9rem' }}>
+              {t('workflow.step', { n: si + 1 })}
+            </span>
             <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem', minWidth: 'auto' }} onClick={() => removeStep(si)}>
-              ✕ הסר שלב
+              {t('workflow.removeStep')}
             </button>
           </div>
           <div className="field-group">
-            <label>כותרת השלב</label>
+            <label>{t('workflow.stepTitle')}</label>
             <input
               type="text"
               value={step.title}
               onChange={e => updateStep(si, 'title', e.target.value)}
-              placeholder={`למשל: שלב ${si + 1} – זיהוי ישות`}
+              placeholder={t('workflow.stepTitlePlaceholder', { n: si + 1 })}
             />
           </div>
 
@@ -545,50 +557,51 @@ function WorkflowBuilder({ steps, onChange }) {
               marginBottom: '12px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>שדה {fi + 1}</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  {t('workflow.field', { n: fi + 1 })}
+                </span>
                 <button className="btn btn-secondary" style={{ padding: '3px 8px', fontSize: '0.75rem', minWidth: 'auto' }} onClick={() => removeField(si, fi)}>
                   ✕
                 </button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div className="field-group" style={{ margin: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>שם השדה (תווית)</label>
+                  <label style={{ fontSize: '0.8rem' }}>{t('workflow.fieldLabel')}</label>
                   <input
                     type="text"
                     value={field.label}
                     onChange={e => updateField(si, fi, 'label', e.target.value)}
-                    placeholder="למשל: בחר ישות"
+                    placeholder={t('workflow.fieldLabelPlaceholder')}
                   />
                 </div>
                 <div className="field-group" style={{ margin: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>סוג קלט</label>
+                  <label style={{ fontSize: '0.8rem' }}>{t('workflow.fieldType')}</label>
                   <select value={field.component} onChange={e => updateField(si, fi, 'component', e.target.value)}>
-                    {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    {FIELD_TYPES.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
                   </select>
                 </div>
               </div>
               {(field.component === 'input_text' || field.component === 'textarea') && (
                 <div className="field-group" style={{ marginTop: '10px', marginBottom: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>טקסט עזר (Placeholder)</label>
+                  <label style={{ fontSize: '0.8rem' }}>{t('workflow.placeholder')}</label>
                   <input
                     type="text"
                     value={field.placeholder}
                     onChange={e => updateField(si, fi, 'placeholder', e.target.value)}
-                    placeholder="למשל: בנק ישראל"
+                    placeholder={t('workflow.placeholderExample')}
                   />
                 </div>
               )}
               {(field.component === 'button_group' || field.component === 'select') && (
                 <div className="field-group" style={{ marginTop: '10px', marginBottom: 0 }}>
-                  <label style={{ fontSize: '0.8rem' }}>אפשרויות (מופרדות בפסיק) – לחץ Tab או צא מהשדה לאישור</label>
+                  <label style={{ fontSize: '0.8rem' }}>{t('workflow.options')}</label>
                   <input
                     type="text"
                     value={getOptionsText(si, fi, field)}
                     onChange={e => handleOptionsChange(si, fi, e.target.value)}
                     onBlur={() => handleOptionsBlur(si, fi)}
-                    placeholder="למשל: חיובי, שלילי, ניטרלי"
+                    placeholder={t('workflow.optionsPlaceholder')}
                   />
-                  {/* Live preview of parsed options */}
                   {(steps[si]?.fields[fi]?.options?.length > 0) && (
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
                       {steps[si].fields[fi].options.map((opt, oi) => (
@@ -609,12 +622,12 @@ function WorkflowBuilder({ steps, onChange }) {
           ))}
 
           <button className="btn btn-secondary" style={{ width: '100%', marginTop: '4px', fontSize: '0.85rem' }} onClick={() => addField(si)}>
-            + הוסף שדה לשלב זה
+            {t('workflow.addField')}
           </button>
         </div>
       ))}
       <button className="btn btn-secondary" style={{ border: '2px dashed var(--border)', background: 'transparent' }} onClick={addStep}>
-        + הוסף שלב חדש
+        {t('workflow.addStep')}
       </button>
     </div>
   );
@@ -638,34 +651,34 @@ function getSourceLabel(src) {
   return last;
 }
 
-function getSourceErrorLabel(src, errorMessage) {
+function getSourceErrorLabel(src, errorMessage, t) {
   if (!errorMessage) return '';
   if (src.includes('drive.google.com') || src.includes('docs.google.com')) {
-    return 'שגיאת גישה לקישור Google Drive';
+    return t('errors.sourceGdrive');
   }
   if (errorMessage.includes('File not found') || errorMessage.includes('Source CSV not found')) {
-    return 'קובץ מקומי לא נמצא בשרת';
+    return t('errors.sourceLocal');
   }
-  return 'שגיאה בטעינת קובץ המקור';
+  return t('errors.sourceGeneral');
 }
 
-function getProjectErrorLabel(project) {
+function getProjectErrorLabel(project, t) {
   const sourceErrors = project?.source_errors || {};
   const sourceEntries = Object.entries(sourceErrors);
   if (!sourceEntries.length) {
-    return 'שגיאה בטעינת מקורות הפרויקט';
+    return t('errors.projectSourceGeneral');
   }
   const hasRemoteError = sourceEntries.some(([src]) => src.includes('drive.google.com') || src.includes('docs.google.com'));
   const hasLocalError = sourceEntries.some(([, message]) =>
     message.includes('File not found') || message.includes('Source CSV not found')
   );
   if (hasLocalError && !hasRemoteError) {
-    return 'קובץ מקור מקומי חסר או לא זמין';
+    return t('errors.projectSourceLocal');
   }
   if (hasRemoteError && !hasLocalError) {
-    return 'שגיאת גישה ל-Google Drive';
+    return t('errors.projectSourceGdrive');
   }
-  return 'חלק ממקורות הפרויקט לא נטענו';
+  return t('errors.projectSourceMixed');
 }
 
 function getProjectSourceDisplayName(project, sourcePath) {
@@ -678,16 +691,15 @@ function getProjectSourceDisplayName(project, sourcePath) {
 // ---------------------------------------------------------------------------
 
 function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit = false }) {
+  const { t } = useT();
   const [name, setName] = useState(initialData?.name || '');
   const [workflowMode, setWorkflowMode] = useState(initialData?.custom_schema ? 'custom' : 'preset');
   const [workflow, setWorkflow] = useState(initialData?.workflow_type || 'A');
   const [contentType, setContentType] = useState(initialData?.custom_schema?.content_type || 'both');
   const [customSteps, setCustomSteps] = useState(initialData?.custom_schema?.steps || []);
 
-  // Per-source errors from the backend (source_path -> error message)
   const sourceErrors = initialData?.source_errors || {};
 
-  // CSV sources — support csv_sources (new array) or source_csv (legacy single string)
   const initialSources = initialData?.csv_sources ??
     (initialData?.source_csv ? [initialData.source_csv] : []);
   const [csvSources, setCsvSources] = useState(initialSources);
@@ -695,16 +707,15 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [manualInput, setManualInput] = useState('');
-  const [manualMsg, setManualMsg] = useState('');       // '' | success text | error text
-  const [manualMsgType, setManualMsgType] = useState('success'); // 'success' | 'error'
-  const [sourceLabels, setSourceLabels] = useState(initialData?.source_labels || {});  // raw URL → display label
+  const [manualMsg, setManualMsg] = useState('');
+  const [manualMsgType, setManualMsgType] = useState('success');
+  const [sourceLabels, setSourceLabels] = useState(initialData?.source_labels || {});
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploading(true);
     setUploadError('');
-    // Track paths added in this batch so we catch intra-batch duplicates too
     const addedThisBatch = [];
     for (const file of files) {
       const formData = new FormData();
@@ -718,16 +729,16 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
         const data = await res.json();
         if (res.ok) {
           if (csvSources.includes(data.path) || addedThisBatch.includes(data.path)) {
-            setUploadError('המקור כבר משויך לפרויקט');
+            setUploadError(t('form.duplicateSource'));
           } else {
             setCsvSources(prev => [...prev, data.path]);
             addedThisBatch.push(data.path);
           }
         } else {
-          setUploadError(data.error || 'שגיאה בהעלאה');
+          setUploadError(data.error || t('errors.uploadFailed'));
         }
       } catch (err) {
-        setUploadError('שגיאת רשת: ' + err.message);
+        setUploadError(t('errors.networkError') + ' ' + err.message);
       }
     }
     setUploading(false);
@@ -742,7 +753,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
     const trimmed = manualInput.trim();
     if (!trimmed) return;
     if (csvSources.includes(trimmed)) {
-      setManualMsg('המקור כבר משויך לפרויקט');
+      setManualMsg(t('form.duplicateSource'));
       setManualMsgType('error');
       return;
     }
@@ -751,16 +762,16 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
 
     let displayLabel = getSourceLabel(trimmed);
     if (sourceType === 'gdrive' || sourceType === 's3') {
-      const name = window.prompt("שם הקובץ לתצוגה:", "");
-      if (name && name.trim()) {
-        const provider = sourceType === 'gdrive' ? "Google Drive" : "AWS S3";
-        const label = provider + " - " + name.trim();
+      const inputName = window.prompt(t('form.sourceNamePrompt'), '');
+      if (inputName && inputName.trim()) {
+        const provider = sourceType === 'gdrive' ? 'Google Drive' : 'AWS S3';
+        const label = provider + ' - ' + inputName.trim();
         setSourceLabels(prev => ({ ...prev, [trimmed]: label }));
         displayLabel = label;
       }
     }
 
-    setManualMsg('קובץ הוסף בהצלחה: ' + displayLabel);
+    setManualMsg(t('form.sourceAdded') + ' ' + displayLabel);
     setManualMsgType('success');
   };
 
@@ -787,55 +798,54 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
       <div className="card" style={{ maxWidth: '720px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
           <button className="btn btn-secondary" style={{ padding: '8px 14px', minWidth: 'auto' }} onClick={onBack}>
-            ← חזור
+            {t('form.back')}
           </button>
-          <h2 style={{ margin: 0 }}>{isEdit ? 'עריכת פרויקט' : 'הקמת פרויקט מחקרי חדש'}</h2>
+          <h2 style={{ margin: 0 }}>{isEdit ? t('form.editTitle') : t('form.newTitle')}</h2>
         </div>
         {error && <div className="alert alert-error">{error}</div>}
 
         {/* Project name */}
         <div className="field-group">
-          <label>שם הפרויקט</label>
+          <label>{t('form.projectName')}</label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="לדוגמה: מחקר זיהוי אובייקטים 2024"
+            placeholder={t('form.projectNamePlaceholder')}
           />
         </div>
 
         {/* CSV Sources */}
         <div className="field-group">
-          <label>קובצי מקור (CSV)</label>
+          <label>{t('form.csvSources')}</label>
 
-          {/* List of already-added sources */}
           {csvSources.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
               {csvSources.map((src, idx) => {
                 const srcError = sourceErrors[src];
                 return (
-                <div key={idx} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '8px 12px',
-                  background: srcError ? 'rgba(255,77,79,0.08)' : 'rgba(63,185,80,0.08)',
-                  border: srcError ? '1px solid rgba(255,77,79,0.4)' : '1px solid rgba(63,185,80,0.25)',
-                  borderRadius: '8px',
-                  fontSize: '0.88rem',
-                }}>
-                  <span style={{ color: srcError ? '#ff4d4f' : 'var(--accent-success)' }}>
-                    {srcError ? '⚠️' : '✓'} {sourceLabels[src] || getSourceLabel(src)}
-                    {srcError && (
-                      <span style={{ display: 'block', fontSize: '0.78rem', opacity: 0.8, fontWeight: 400, marginTop: '2px' }}>
-                        {getSourceErrorLabel(src, srcError)}
-                      </span>
-                    )}
-                  </span>
-                  <button
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
-                    onClick={() => removeSource(idx)}
-                    title="הסר קובץ"
-                  >✕</button>
-                </div>
+                  <div key={idx} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    background: srcError ? 'rgba(255,77,79,0.08)' : 'rgba(63,185,80,0.08)',
+                    border: srcError ? '1px solid rgba(255,77,79,0.4)' : '1px solid rgba(63,185,80,0.25)',
+                    borderRadius: '8px',
+                    fontSize: '0.88rem',
+                  }}>
+                    <span style={{ color: srcError ? '#ff4d4f' : 'var(--accent-success)' }}>
+                      {srcError ? '⚠️' : '✓'} {sourceLabels[src] || getSourceLabel(src)}
+                      {srcError && (
+                        <span style={{ display: 'block', fontSize: '0.78rem', opacity: 0.8, fontWeight: 400, marginTop: '2px' }}>
+                          {getSourceErrorLabel(src, srcError, t)}
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
+                      onClick={() => removeSource(idx)}
+                      title={t('form.removeFile')}
+                    >✕</button>
+                  </div>
                 );
               })}
             </div>
@@ -844,9 +854,9 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
           {/* Source type picker */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
             {[
-              { value: 'local', icon: '📁', label: 'מהמחשב' },
-              { value: 'gdrive', icon: '☁️', label: 'Google Drive' },
-              { value: 's3', icon: '🪣', label: 'AWS S3' },
+              { value: 'local', icon: '📁', label: t('form.sourceLocal') },
+              { value: 'gdrive', icon: '☁️', label: t('form.sourceGdrive') },
+              { value: 's3', icon: '🪣', label: t('form.sourceS3') },
             ].map(st => (
               <div
                 key={st.value}
@@ -877,8 +887,8 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                 }}
               >
                 {uploading
-                  ? <><span className="spinner" /><span>מעלה...</span></>
-                  : <><span>📂</span><span>לחץ לבחירת קובץ CSV (ניתן לבחור מרובים)</span></>}
+                  ? <><span className="spinner" /><span>{t('form.uploading')}</span></>
+                  : <><span>📂</span><span>{t('form.uploadClick')}</span></>}
               </label>
               <input
                 id="csv-upload"
@@ -904,16 +914,18 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                   value={manualInput}
                   onChange={e => { setManualInput(e.target.value); setManualMsg(''); }}
                   onKeyDown={e => e.key === 'Enter' && addManualSource()}
-                  placeholder="הדבק לינק שיתוף של Google Drive (קובץ CSV)"
+                  placeholder={t('form.gdrivePlaceholder')}
                 />
-                <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>הוסף</button>
+                <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>
+                  {t('form.add')}
+                </button>
               </div>
               {manualMsg && (
                 <p className="field-hint" style={{ marginTop: '6px', color: manualMsgType === 'success' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
                   {manualMsg}
                 </p>
               )}
-              <p className="field-hint">וודא שהקובץ שיתוף ל׳כל מי שיש לו קישור׳ ושהוא בפורמט CSV</p>
+              <p className="field-hint">{t('form.gdriveHint')}</p>
             </div>
           )}
 
@@ -926,16 +938,18 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                   value={manualInput}
                   onChange={e => { setManualInput(e.target.value); setManualMsg(''); }}
                   onKeyDown={e => e.key === 'Enter' && addManualSource()}
-                  placeholder="למשל: s3://my-bucket/data/labels.csv"
+                  placeholder={t('form.s3Placeholder')}
                 />
-                <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>הוסף</button>
+                <button className="btn btn-secondary" style={{ minWidth: 'auto', padding: '10px 16px' }} onClick={addManualSource}>
+                  {t('form.add')}
+                </button>
               </div>
               {manualMsg && (
                 <p className="field-hint" style={{ marginTop: '6px', color: manualMsgType === 'success' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
                   {manualMsg}
                 </p>
               )}
-              <p className="field-hint">הזן S3 URI מלא (s3://bucket/key) – ודא שלשרת יש הרשאות גישה</p>
+              <p className="field-hint">{t('form.s3Hint')}</p>
             </div>
           )}
         </div>
@@ -944,16 +958,16 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
 
         {/* Workflow mode toggle */}
         <div className="field-group">
-          <label>בחר סוג תהליך עבודה</label>
+          <label>{t('form.workflowLabel')}</label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '8px' }}>
             <div
               className={`workflow-mode-card ${workflowMode === 'preset' ? 'selected' : ''}`}
               onClick={() => setWorkflowMode('preset')}
             >
               <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>📋</div>
-              <strong>תהליך מוגדר מראש</strong>
+              <strong>{t('form.presetTitle')}</strong>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                בחר מתוך תהליכים A, B, C הקיימים במערכת
+                {t('form.presetDesc')}
               </p>
             </div>
             <div
@@ -961,9 +975,9 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
               onClick={() => setWorkflowMode('custom')}
             >
               <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>🔧</div>
-              <strong>בנה תהליך מותאם אישית</strong>
+              <strong>{t('form.customTitle')}</strong>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                הגדר שלבים, שדות ואפשרויות לפי הצורך
+                {t('form.customDesc')}
               </p>
             </div>
           </div>
@@ -972,12 +986,12 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
         {/* Preset workflow selector */}
         {workflowMode === 'preset' && (
           <div className="field-group">
-            <label>תהליך עבודה</label>
+            <label>{t('form.workflowType')}</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
-                { value: 'A', label: 'א׳ – קשר תמונה-טקסט', desc: 'מתאים לניתוח הקשר בין תמונה לטקסט נלווה. מציג תמונה וטקסט, מבקש סיווג הקשר.', icon: '🖼️' },
-                { value: 'B', label: 'ב׳ – ניתוח ישויות וסנטימנט', desc: 'תהליך מרובה שלבים: זיהוי ישות, קביעת נושא, וניתוח סנטימנט.', icon: '🔍' },
-                { value: 'C', label: 'ג׳ – כתיבת כיתובים (Captions)', desc: 'הצגת תמונה וביקוש לכתיבת תיאור חופשי (Caption).', icon: '✍️' },
+                { value: 'A', labelKey: 'form.workflowA', descKey: 'form.workflowADesc', icon: '🖼️' },
+                { value: 'B', labelKey: 'form.workflowB', descKey: 'form.workflowBDesc', icon: '🔍' },
+                { value: 'C', labelKey: 'form.workflowC', descKey: 'form.workflowCDesc', icon: '✍️' },
               ].map(opt => (
                 <div
                   key={opt.value}
@@ -986,10 +1000,10 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                 >
                   <span style={{ fontSize: '1.4rem' }}>{opt.icon}</span>
                   <div>
-                    <strong>{opt.label}</strong>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{opt.desc}</p>
+                    <strong>{t(opt.labelKey)}</strong>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t(opt.descKey)}</p>
                   </div>
-                  <div style={{ marginRight: 'auto', width: '18px', height: '18px', borderRadius: '50%', border: '2px solid var(--accent)', background: workflow === opt.value ? 'var(--accent)' : 'transparent', flexShrink: 0 }} />
+                  <div style={{ marginInlineStart: 'auto', width: '18px', height: '18px', borderRadius: '50%', border: '2px solid var(--accent)', background: workflow === opt.value ? 'var(--accent)' : 'transparent', flexShrink: 0 }} />
                 </div>
               ))}
             </div>
@@ -1000,12 +1014,12 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
         {workflowMode === 'custom' && (
           <>
             <div className="field-group">
-              <label>סוג תוכן הנתונים</label>
+              <label>{t('form.contentType')}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 {[
-                  { value: 'image', label: '🖼️ תמונות בלבד' },
-                  { value: 'text', label: '📝 טקסט בלבד' },
-                  { value: 'both', label: '🖼️+📝 תמונה וטקסט' },
+                  { value: 'image', labelKey: 'form.contentImage' },
+                  { value: 'text', labelKey: 'form.contentText' },
+                  { value: 'both', labelKey: 'form.contentBoth' },
                 ].map(ct => (
                   <div
                     key={ct.value}
@@ -1013,14 +1027,14 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
                     style={{ justifyContent: 'center', textAlign: 'center', padding: '12px', flexDirection: 'column', gap: '4px' }}
                     onClick={() => setContentType(ct.value)}
                   >
-                    <strong style={{ fontSize: '0.85rem' }}>{ct.label}</strong>
+                    <strong style={{ fontSize: '0.85rem' }}>{t(ct.labelKey)}</strong>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="field-group">
-              <label>שלבי תהליך העבודה</label>
+              <label>{t('form.workflowSteps')}</label>
               <WorkflowBuilder steps={customSteps} onChange={setCustomSteps} />
             </div>
           </>
@@ -1028,9 +1042,9 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
 
         <hr className="divider" />
         <div className="btn-row">
-          <button className="btn btn-secondary" onClick={onBack}>ביטול</button>
+          <button className="btn btn-secondary" onClick={onBack}>{t('form.cancel')}</button>
           <button className="btn btn-primary" onClick={handleSubmit}>
-            {isEdit ? 'שמור שינויים' : 'יצירת פרויקט'}
+            {isEdit ? t('form.save') : t('form.create')}
           </button>
         </div>
       </div>
@@ -1039,13 +1053,14 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
 }
 
 function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
+  const { t } = useT();
   const [config, setConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
     if (task) {
-        setImageLoaded(false);
+      setImageLoaded(false);
     }
   }, [task]);
 
@@ -1066,9 +1081,9 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
       <section className="screen active">
         <div className="card empty-state">
           <div className="big-icon">🎉</div>
-          <h2>כל המשימות הושלמו</h2>
-          <p className="subtitle">השלמת בהצלחה את כל משימות התיוג בפרויקט זה.</p>
-          <button className="btn btn-secondary" onClick={onExit}>חזרה לרשימת הפרויקטים</button>
+          <h2>{t('task.allDone')}</h2>
+          <p className="subtitle">{t('task.allDoneSubtitle')}</p>
+          <button className="btn btn-secondary" onClick={onExit}>{t('task.backToProjects')}</button>
         </div>
       </section>
     );
@@ -1080,44 +1095,46 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
         <div className="task-header">
           <div>
             <h2>{project.name}</h2>
-            <span className="info-chip">פרויקט מחקרי | תהליך {project.workflow_type}</span>
+            <span className="info-chip">
+              {t('task.projectChip', { type: project.workflow_type })}
+            </span>
             {task?.source_csv && (
-              <span className="info-chip" style={{ marginRight: '6px' }}>
+              <span className="info-chip" style={{ marginInlineStart: '6px' }}>
                 📄 {getProjectSourceDisplayName(project, task.source_csv)}
               </span>
             )}
           </div>
           <button className="btn btn-secondary" style={{ padding: '8px 14px', minWidth: 'auto' }} onClick={onExit}>
-            יציאה
+            {t('task.exit')}
           </button>
         </div>
 
         {task.has_image && (
           <div className="task-image-container" style={{ position: 'relative', minHeight: '200px' }}>
             {task.use_image_loading_bar && !imageLoaded && (
-              <div 
-                className="loading-state" 
+              <div
+                className="loading-state"
                 style={{
-                  position: 'absolute', 
-                  top: 0, 
-                  left: 0, 
-                  right: 0, 
-                  bottom: 0, 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                   backgroundColor: 'var(--bg-primary)',
                   zIndex: 10,
                   borderRadius: '12px'
                 }}
               >
                 <div className="spinner"></div>
-                <span style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>טוען תמונה…</span>
+                <span style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>{t('loading.image')}</span>
               </div>
             )}
-            <img 
-              src={task.image_path} 
-              alt="Task" 
+            <img
+              src={task.image_path}
+              alt="Task"
               onLoad={() => setImageLoaded(true)}
               style={task.use_image_loading_bar && !imageLoaded ? { display: 'none' } : {}}
             />
@@ -1125,7 +1142,7 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
         )}
 
         {task.has_text && (
-          <div className="task-text-box">{task.text_content}</div>
+          <div className="task-text-box" dir="auto">{task.text_content}</div>
         )}
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -1134,7 +1151,7 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
           {loadingConfig ? (
             <div className="loading-state">
               <div className="spinner"></div>
-              <span>טוען הגדרות תהליך...</span>
+              <span>{t('loading.workflow')}</span>
             </div>
           ) : config ? (
             <DynamicWorkflow
@@ -1143,7 +1160,7 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
               onSubmit={onSubmit}
             />
           ) : (
-            <div className="alert alert-error">שגיאה בטעינת הגדרות התהליך</div>
+            <div className="alert alert-error">{t('task.errorWorkflow')}</div>
           )}
         </div>
       </div>
@@ -1160,6 +1177,7 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
  * Handles multi-step navigation and field validation automatically.
  */
 function DynamicWorkflow({ config, onSubmit }) {
+  const { t } = useT();
   const [stepIndex, setStepIndex] = useState(0);
   const [formData, setFormData] = useState({});
 
@@ -1172,7 +1190,6 @@ function DynamicWorkflow({ config, onSubmit }) {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
   };
 
-  // Ensure all fields in the current step are filled before proceeding
   const canGoNext = currentStep.fields.every(f => {
     const val = formData[f.id];
     return val !== undefined && val !== null && val.toString().trim() !== '';
@@ -1188,7 +1205,6 @@ function DynamicWorkflow({ config, onSubmit }) {
 
   return (
     <div className="dynamic-workflow">
-      {/* Progress horizontal line for multi-step tasks */}
       {config.steps.length > 1 && (
         <div className="steps-indicator">
           {config.steps.map((_s, idx) => (
@@ -1218,7 +1234,7 @@ function DynamicWorkflow({ config, onSubmit }) {
       <div className="btn-row">
         {stepIndex > 0 && (
           <button className="btn btn-secondary" onClick={() => setStepIndex(stepIndex - 1)}>
-            חזור
+            {t('task.back')}
           </button>
         )}
         <button
@@ -1226,7 +1242,7 @@ function DynamicWorkflow({ config, onSubmit }) {
           onClick={handleAction}
           disabled={!canGoNext}
         >
-          {isLastStep ? 'סיום ושליחה' : 'הבא ←'}
+          {isLastStep ? t('task.submit') : t('task.next')}
         </button>
       </div>
     </div>
@@ -1237,6 +1253,8 @@ function DynamicWorkflow({ config, onSubmit }) {
  * A generic field renderer that picks the right component based on the schema.
  */
 function DynamicField({ field, value, onChange }) {
+  const { t } = useT();
+
   const renderInput = () => {
     switch (field.component) {
       case 'input_text':
@@ -1274,14 +1292,14 @@ function DynamicField({ field, value, onChange }) {
       case 'select':
         return (
           <select value={value} onChange={e => onChange(e.target.value)}>
-            <option value="">-- בחר אפשרות --</option>
+            <option value="">{t('task.selectOption')}</option>
             {field.options.map(opt => (
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
         );
       default:
-        return <div className="alert alert-error">Unknown Component: {field.component}</div>;
+        return <div className="alert alert-error">{t('errors.unknownComponent')} {field.component}</div>;
     }
   };
 
@@ -1294,24 +1312,25 @@ function DynamicField({ field, value, onChange }) {
 }
 
 function ContinueDialog({ rowsRemaining, isFinished, onContinue, onExit }) {
+  const { t } = useT();
   return (
     <div className="dialog-overlay">
       <div className="dialog-box">
         <div className="dialog-icon">✅</div>
-        <h2>התיוג נשלח בהצלחה</h2>
+        <h2>{t('dialog.successTitle')}</h2>
         <p>
           {isFinished
-            ? 'השלמת את כל המשימות בפרויקט זה!'
-            : `נותרו עוד ${rowsRemaining} משימות להשלמה.`}
+            ? t('dialog.allDone')
+            : t('dialog.remaining', { count: rowsRemaining })}
         </p>
         <div className="btn-row" style={{ justifyContent: 'center', marginTop: 0 }}>
           {!isFinished && (
             <button className="btn btn-primary" onClick={onContinue}>
-              המשך למשימה הבאה
+              {t('dialog.continueBtn')}
             </button>
           )}
           <button className="btn btn-secondary" onClick={onExit}>
-            חזרה לרשימה
+            {t('dialog.backToList')}
           </button>
         </div>
       </div>

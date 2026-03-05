@@ -46,7 +46,6 @@ html,
 body,
 #root {
   min-height: 100%;
-  direction: rtl;
   font-family: 'Heebo', 'Arial Hebrew', sans-serif;
   background: var(--bg-deep);
   color: var(--text-primary);
@@ -176,7 +175,6 @@ textarea {
   font-size: 1rem;
   transition: border-color var(--transition), box-shadow var(--transition);
   outline: none;
-  direction: rtl;
 }
 
 input[type='text']:focus,
@@ -386,6 +384,12 @@ select option {
   gap: 10px;
 }
 
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .user-badge {
   display: flex;
   align-items: center;
@@ -396,6 +400,53 @@ select option {
 
 .user-badge strong {
   color: var(--text-primary);
+}
+
+/* ── Language bar (shown when not logged in) ────────────────────────── */
+.lang-bar {
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  margin-bottom: 16px;
+}
+
+.lang-bar .lang-switcher {
+  margin-inline-start: auto;
+}
+
+/* ── Language switcher (segmented control) ──────────────────────────── */
+.lang-switcher {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.lang-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  line-height: 1.4;
+}
+
+.lang-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.lang-btn.active {
+  background: var(--accent);
+  color: #0d1117;
 }
 
 /* ── Project grid ───────────────────────────────────────────────────── */
@@ -425,7 +476,7 @@ select option {
   content: '';
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-start: 0;
   width: 4px;
   height: 100%;
   background: var(--accent);
