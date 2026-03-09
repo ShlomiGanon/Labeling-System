@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as api from './api/client';
 import { useT } from './i18n/LanguageContext';
+import { translations } from './i18n/translations';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 
 /**
@@ -26,6 +27,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [managerDashboard, setManagerDashboard] = useState(null);
   const [dashboardError, setDashboardError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Login & Session logic
@@ -46,7 +48,9 @@ export default function App() {
 
   const handleLogin = async (userName) => {
     setError('');
+    setLoginLoading(true);
     const { ok, data } = await api.login(userName);
+    setLoginLoading(false);
     if (ok) {
       setUser(data.user_name);
       fetchProjects();
@@ -163,21 +167,35 @@ export default function App() {
   // Rendering the current screen
   // ---------------------------------------------------------------------------
 
+  const clearError = () => setError('');
+
   const renderScreen = () => {
     switch (screen) {
       case 'loading':
         return <LoadingScreen />;
       case 'login':
-        return <LoginScreen onLogin={handleLogin} error={error} />;
+        return <LoginScreen onLogin={handleLogin} error={error} onClearError={clearError} loading={loginLoading} />;
       case 'projects':
         return (
           <ProjectsScreen
             projects={projects}
+            user={user}
             onSelect={handleSelectProject}
             onCreateNew={() => setScreen('new-project')}
             onEdit={(p) => { setActiveProject(p); setScreen('edit-project'); }}
             onDelete={handleDeleteProject}
+            onGoToCompleted={() => setScreen('completed-projects')}
             error={error}
+          />
+        );
+      case 'completed-projects':
+        return (
+          <CompletedProjectsScreen
+            projects={projects}
+            user={user}
+            onEdit={(p) => { setActiveProject(p); setScreen('edit-project'); }}
+            onDelete={handleDeleteProject}
+            onBack={() => setScreen('projects')}
           />
         );
       case 'new-project':
@@ -186,6 +204,7 @@ export default function App() {
             onSubmit={handleCreateProject}
             onBack={() => setScreen('projects')}
             error={error}
+            onClearError={clearError}
           />
         );
       case 'edit-project':
@@ -197,6 +216,7 @@ export default function App() {
             onBack={() => setScreen('projects')}
             error={error}
             isEdit={true}
+            onClearError={clearError}
           />
         );
       case 'task':
@@ -211,6 +231,7 @@ export default function App() {
               fetchProjects();
             }}
             error={error}
+            onClearError={clearError}
           />
         );
       case 'manager':
@@ -303,9 +324,32 @@ function Topbar({ user, onLogout, onDashboard }) {
   );
 }
 
-function LoginScreen({ onLogin, error }) {
+function validateUsername(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return 'empty';
+  if (!/^[\p{L}\s]+$/u.test(trimmed)) return 'invalidChars';
+  const letters = [...trimmed].filter(ch => /\p{L}/u.test(ch));
+  if (letters.length < 2) return 'tooShort';
+  return null;
+}
+
+function LoginScreen({ onLogin, error, onClearError, loading }) {
+  useEffect(() => () => { onClearError?.(); }, [onClearError]);
   const { t } = useT();
   const [userName, setUserName] = useState('');
+  const [attempted, setAttempted] = useState(false);
+
+  const usernameError = attempted ? validateUsername(userName) : null;
+
+  const getErrorMsg = (err) => {
+    if (err === 'invalidChars') return t('login.invalidChars');
+    return t('login.tooShort');
+  };
+
+  const handleSubmit = () => {
+    if (validateUsername(userName)) { setAttempted(true); return; }
+    onLogin(userName.trim());
+  };
 
   return (
     <section className="screen active">
@@ -318,18 +362,24 @@ function LoginScreen({ onLogin, error }) {
         <h2>{t('login.cardTitle')}</h2>
         <p className="subtitle">{t('login.cardSubtitle')}</p>
         {error && <div className="alert alert-error">{error}</div>}
+        {usernameError && <div className="alert alert-error">{getErrorMsg(usernameError)}</div>}
         <div className="field-group">
           <label>{t('login.usernameLabel')}</label>
           <input
             type="text"
+            className={usernameError ? 'input-invalid' : undefined}
             value={userName}
-            onChange={(e) => setUserName(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setUserName(v);
+              if (attempted && !validateUsername(v)) setAttempted(false);
+            }}
             placeholder={t('login.usernamePlaceholder')}
-            onKeyDown={(e) => e.key === 'Enter' && onLogin(userName)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
           />
         </div>
-        <button className="btn btn-primary btn-full" onClick={() => onLogin(userName)}>
-          {t('login.submitBtn')}
+        <button className="btn btn-primary btn-full" onClick={handleSubmit} disabled={loading}>
+          {loading ? '…' : t('login.submitBtn')}
         </button>
       </div>
     </section>
@@ -383,13 +433,67 @@ function DeleteConfirmDialog({ project, onCancel, onConfirm }) {
   );
 }
 
-function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, error }) {
+function PermissionDeniedDialog({ title, message, onClose }) {
   const { t } = useT();
+  return (
+    <div className="dialog-overlay" onClick={onClose}>
+      <div className="dialog-box" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', textAlign: 'center' }}>
+        <div className="dialog-icon">🔒</div>
+        <h2>{title}</h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.6 }}>{message}</p>
+        <button className="btn btn-secondary" style={{ marginTop: '20px', width: '100%' }} onClick={onClose}>
+          {t('delete.cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProjectsScreen({ projects, user, onSelect, onCreateNew, onEdit, onDelete, onGoToCompleted, error }) {
+  const { t } = useT();
+  const activeProjects = projects.filter(p => !p.is_finished);
+  const completedCount = projects.filter(p => p.is_finished).length;
   const [deleteTarget, setDeleteTarget] = React.useState(null);
+  const [permissionTarget, setPermissionTarget] = React.useState(null);
+  const [downloadingId, setDownloadingId] = React.useState(null);
+  const [downloadError, setDownloadError] = React.useState('');
 
   const handleDeleteConfirm = (deleteFiles) => {
     onDelete(deleteTarget.id, deleteFiles);
     setDeleteTarget(null);
+  };
+
+  const handleEditClick = (p) => {
+    if (p.owner !== user) { setPermissionTarget({ type: 'edit', project: p }); return; }
+    onEdit(p);
+  };
+
+  const handleDeleteClick = (p) => {
+    if (p.owner !== user) { setPermissionTarget({ type: 'delete', project: p }); return; }
+    setDeleteTarget(p);
+  };
+
+  const handleDownloadClick = async (e, p) => {
+    e.stopPropagation();
+    setDownloadingId(p.id);
+    setDownloadError('');
+    const result = await api.downloadMasterFile(p.id);
+    setDownloadingId(null);
+    if (!result.ok) {
+      const msg = result.error?.includes('404') || result.error?.includes('File not found')
+        ? t('projects.downloadNoFile')
+        : t('projects.downloadError', { msg: result.error });
+      setDownloadError(msg);
+      return;
+    }
+    const blobUrl = URL.createObjectURL(result.blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = result.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
   };
 
   return (
@@ -401,17 +505,41 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
           onConfirm={handleDeleteConfirm}
         />
       )}
-      <div style={{ marginBottom: '28px' }}>
-        <h1>{t('projects.title')}</h1>
-        <p className="subtitle">{t('projects.subtitle')}</p>
+      {permissionTarget && (
+        <PermissionDeniedDialog
+          title={t('projects.noPermissionTitle')}
+          message={permissionTarget.type === 'edit' ? t('projects.noPermissionEdit') : t('projects.noPermissionDelete')}
+          onClose={() => setPermissionTarget(null)}
+        />
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1>{t('projects.title')}</h1>
+          <p className="subtitle">{t('projects.subtitle')}</p>
+        </div>
+        {completedCount > 0 && (
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: '0.88rem', padding: '8px 16px', alignSelf: 'flex-start' }}
+            onClick={onGoToCompleted}
+          >
+            {t('projects.goToCompleted')} ({completedCount})
+          </button>
+        )}
       </div>
       {error && <div className="alert alert-error">{error}</div>}
+      {downloadError && <div className="alert alert-error">{downloadError}</div>}
       <div className="projects-grid">
         <div className="project-card new-project" onClick={onCreateNew}>
           <div className="new-icon">＋</div>
           <span>{t('projects.newProject')}</span>
         </div>
-        {projects.map((p) => {
+        {activeProjects.length === 0 && (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
+            {t('projects.noActiveProjects')}
+          </div>
+        )}
+        {activeProjects.map((p) => {
           const hasError = !!p.init_error;
           const hasTasks = (p.rows_remaining || 0) > 0;
           const isBlocked = p.is_finished || (hasError && !hasTasks);
@@ -429,16 +557,24 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
               {/* Action buttons area */}
               <div style={{ position: 'absolute', top: '12px', insetInlineEnd: '12px', display: 'flex', gap: '8px' }}>
                 <button
+                  className="project-action-btn"
+                  title={t('projects.downloadTitle')}
+                  onClick={(e) => handleDownloadClick(e, p)}
+                  disabled={downloadingId === p.id}
+                >
+                  {downloadingId === p.id ? '…' : '⬇️'}
+                </button>
+                <button
                   className="project-action-btn edit-btn"
                   title={t('projects.editTitle')}
-                  onClick={(e) => { e.stopPropagation(); onEdit(p); }}
+                  onClick={(e) => { e.stopPropagation(); handleEditClick(p); }}
                 >
                   ✏️
                 </button>
                 <button
                   className="project-action-btn delete-btn"
                   title={t('projects.deleteTitle')}
-                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(p); }}
                 >
                   🗑️
                 </button>
@@ -475,6 +611,136 @@ function ProjectsScreen({ projects, onSelect, onCreateNew, onEdit, onDelete, err
           );
         })}
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CompletedProjectsScreen – shows only finished projects
+// ---------------------------------------------------------------------------
+
+function CompletedProjectsScreen({ projects, user, onEdit, onDelete, onBack }) {
+  const { t } = useT();
+  const completedProjects = projects.filter(p => p.is_finished);
+  const [deleteTarget, setDeleteTarget] = React.useState(null);
+  const [permissionTarget, setPermissionTarget] = React.useState(null);
+  const [downloadingId, setDownloadingId] = React.useState(null);
+  const [downloadError, setDownloadError] = React.useState('');
+
+  const handleDeleteConfirm = (deleteFiles) => {
+    onDelete(deleteTarget.id, deleteFiles);
+    setDeleteTarget(null);
+  };
+
+  const handleEditClick = (p) => {
+    if (p.owner !== user) { setPermissionTarget({ type: 'edit', project: p }); return; }
+    onEdit(p);
+  };
+
+  const handleDeleteClick = (p) => {
+    if (p.owner !== user) { setPermissionTarget({ type: 'delete', project: p }); return; }
+    setDeleteTarget(p);
+  };
+
+  const handleDownloadClick = async (e, p) => {
+    e.stopPropagation();
+    setDownloadingId(p.id);
+    setDownloadError('');
+    const result = await api.downloadMasterFile(p.id);
+    setDownloadingId(null);
+    if (!result.ok) {
+      const msg = result.error?.includes('404') || result.error?.includes('File not found')
+        ? t('projects.downloadNoFile')
+        : t('projects.downloadError', { msg: result.error });
+      setDownloadError(msg);
+      return;
+    }
+    const blobUrl = URL.createObjectURL(result.blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = result.filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  };
+
+  return (
+    <section className="screen active" style={{ width: '100%', maxWidth: '1100px' }}>
+      {deleteTarget && (
+        <DeleteConfirmDialog
+          project={deleteTarget}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDeleteConfirm}
+        />
+      )}
+      {permissionTarget && (
+        <PermissionDeniedDialog
+          title={t('projects.noPermissionTitle')}
+          message={permissionTarget.type === 'edit' ? t('projects.noPermissionEdit') : t('projects.noPermissionDelete')}
+          onClose={() => setPermissionTarget(null)}
+        />
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1>{t('projects.completedPageTitle')}</h1>
+          <p className="subtitle">{t('projects.completedPageSubtitle')}</p>
+        </div>
+        <button
+          className="btn btn-secondary"
+          style={{ fontSize: '0.88rem', padding: '8px 16px', alignSelf: 'flex-start' }}
+          onClick={onBack}
+        >
+          {t('projects.backToActive')}
+        </button>
+      </div>
+      {downloadError && <div className="alert alert-error">{downloadError}</div>}
+      {completedProjects.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-secondary)' }}>
+          {t('projects.noCompletedProjects')}
+        </div>
+      ) : (
+        <div className="projects-grid">
+          {completedProjects.map((p) => (
+            <div
+              key={p.id}
+              className="project-card finished"
+              style={{ position: 'relative', cursor: 'default' }}
+            >
+              <div style={{ position: 'absolute', top: '12px', insetInlineEnd: '12px', display: 'flex', gap: '8px' }}>
+                <button
+                  className="project-action-btn"
+                  title={t('projects.downloadTitle')}
+                  onClick={(e) => handleDownloadClick(e, p)}
+                  disabled={downloadingId === p.id}
+                >
+                  {downloadingId === p.id ? '…' : '⬇️'}
+                </button>
+                <button
+                  className="project-action-btn edit-btn"
+                  title={t('projects.editTitle')}
+                  onClick={(e) => { e.stopPropagation(); handleEditClick(p); }}
+                >
+                  ✏️
+                </button>
+                <button
+                  className="project-action-btn delete-btn"
+                  title={t('projects.deleteTitle')}
+                  onClick={(e) => { e.stopPropagation(); handleDeleteClick(p); }}
+                >
+                  🗑️
+                </button>
+              </div>
+              <h3>{p.name}</h3>
+              <div className="project-meta">
+                <span>{t('projects.researcher')} {p.owner}</span>
+                <span>{t('projects.completed')}</span>
+              </div>
+              <span className="badge badge-done">{t('projects.badgeDone')}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -720,9 +986,15 @@ function getProjectSourceDisplayName(project, sourcePath) {
 // ProjectFormScreen – handles both creating and editing projects
 // ---------------------------------------------------------------------------
 
-function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit = false }) {
+function ProjectFormScreen({ onSubmit, onBack, error, onClearError, initialData = null, isEdit = false }) {
+  useEffect(() => () => { onClearError?.(); }, [onClearError]);
   const { t } = useT();
   const [name, setName] = useState(initialData?.name || '');
+  const [nameAttempted, setNameAttempted] = useState(false);
+  const [csvAttempted, setCsvAttempted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => { if (error) setSubmitting(false); }, [error]);
   const [workflowMode, setWorkflowMode] = useState(initialData?.custom_schema ? 'custom' : 'preset');
   const [workflow, setWorkflow] = useState(initialData?.workflow_type || 'A');
   const [contentType, setContentType] = useState(initialData?.custom_schema?.content_type || 'both');
@@ -733,6 +1005,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   const initialSources = initialData?.csv_sources ??
     (initialData?.source_csv ? [initialData.source_csv] : []);
   const [csvSources, setCsvSources] = useState(initialSources);
+  useEffect(() => { if (csvSources.length > 0) setCsvAttempted(false); }, [csvSources.length]);
   const [sourceType, setSourceType] = useState('local');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -806,6 +1079,10 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   };
 
   const handleSubmit = () => {
+    let hasError = false;
+    if (!name.trim()) { setNameAttempted(true); hasError = true; }
+    if (csvSources.length === 0) { setCsvAttempted(true); hasError = true; }
+    if (hasError) return;
     const payload = {
       name,
       csv_sources: csvSources,
@@ -820,6 +1097,7 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
       payload.workflow_type = workflow;
     }
 
+    setSubmitting(true);
     onSubmit(payload);
   };
 
@@ -839,15 +1117,25 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
           <label>{t('form.projectName')}</label>
           <input
             type="text"
+            className={nameAttempted && !name.trim() ? 'input-invalid' : undefined}
             value={name}
-            onChange={e => setName(e.target.value)}
+            onChange={e => { setName(e.target.value); setNameAttempted(false); }}
             placeholder={t('form.projectNamePlaceholder')}
           />
+          {nameAttempted && !name.trim() && (
+            <p className="field-hint" style={{ color: 'var(--accent-danger)', marginTop: '6px' }}>{t('form.projectNameRequired')}</p>
+          )}
         </div>
 
         {/* CSV Sources */}
-        <div className="field-group">
+        <div
+          className="field-group"
+          style={csvAttempted && csvSources.length === 0 ? { outline: '1.5px solid rgba(248,81,73,0.5)', borderRadius: '10px', padding: '10px' } : {}}
+        >
           <label>{t('form.csvSources')}</label>
+          {csvAttempted && csvSources.length === 0 && (
+            <div className="alert alert-error" style={{ marginBottom: '10px' }}>{t('form.csvRequired')}</div>
+          )}
 
           {csvSources.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
@@ -1072,9 +1360,9 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
 
         <hr className="divider" />
         <div className="btn-row">
-          <button className="btn btn-secondary" onClick={onBack}>{t('form.cancel')}</button>
-          <button className="btn btn-primary" onClick={handleSubmit}>
-            {isEdit ? t('form.save') : t('form.create')}
+          <button className="btn btn-secondary" onClick={onBack} disabled={submitting}>{t('form.cancel')}</button>
+          <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? '…' : (isEdit ? t('form.save') : t('form.create'))}
           </button>
         </div>
       </div>
@@ -1082,7 +1370,8 @@ function ProjectFormScreen({ onSubmit, onBack, error, initialData = null, isEdit
   );
 }
 
-function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
+function TaskScreen({ project, task, isFinished, onSubmit, onExit, error, onClearError }) {
+  useEffect(() => () => { onClearError?.(); }, [onClearError]);
   const { t } = useT();
   const [config, setConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -1207,14 +1496,44 @@ function TaskScreen({ project, task, isFinished, onSubmit, onExit, error }) {
  * Handles multi-step navigation and field validation automatically.
  */
 function DynamicWorkflow({ config, onSubmit }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [stepIndex, setStepIndex] = useState(0);
   const [formData, setFormData] = useState({});
+  const [attempted, setAttempted] = useState(false);
 
-  if (!config || !config.steps) return null;
+  // For preset workflows (A/B/C) override server-returned Hebrew text with the
+  // active-language translation. For CUSTOM workflows the text is user-defined
+  // so we show it as-is. Recomputes instantly when `lang` changes.
+  const displayConfig = useMemo(() => {
+    if (!config) return config;
+    const schemaOverride = translations[lang]?.schemas?.[config.workflow_type];
+    if (!schemaOverride) return config;
+    return {
+      ...config,
+      steps: config.steps.map((step, si) => {
+        const stepT = schemaOverride.steps[si];
+        if (!stepT) return step;
+        return {
+          ...step,
+          title: stepT.title ?? step.title,
+          fields: step.fields.map((field, fi) => {
+            const fieldT = stepT.fields?.[fi];
+            if (!fieldT) return field;
+            return {
+              ...field,
+              label: fieldT.label ?? field.label,
+              placeholder: fieldT.placeholder !== undefined ? fieldT.placeholder : field.placeholder,
+            };
+          }),
+        };
+      }),
+    };
+  }, [config, lang]);
 
-  const currentStep = config.steps[stepIndex];
-  const isLastStep = stepIndex === config.steps.length - 1;
+  if (!displayConfig || !displayConfig.steps) return null;
+
+  const currentStep = displayConfig.steps[stepIndex];
+  const isLastStep = stepIndex === displayConfig.steps.length - 1;
 
   const handleFieldChange = (fieldId, value) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
@@ -1226,6 +1545,11 @@ function DynamicWorkflow({ config, onSubmit }) {
   });
 
   const handleAction = () => {
+    if (!canGoNext) {
+      setAttempted(true);
+      return;
+    }
+    setAttempted(false);
     if (isLastStep) {
       onSubmit(formData);
     } else {
@@ -1235,14 +1559,14 @@ function DynamicWorkflow({ config, onSubmit }) {
 
   return (
     <div className="dynamic-workflow">
-      {config.steps.length > 1 && (
+      {displayConfig.steps.length > 1 && (
         <div className="steps-indicator">
-          {config.steps.map((_s, idx) => (
+          {displayConfig.steps.map((_s, idx) => (
             <React.Fragment key={idx}>
               <div className={`step-dot ${stepIndex === idx ? 'active' : stepIndex > idx ? 'done' : ''}`}>
                 {stepIndex > idx ? '✓' : idx + 1}
               </div>
-              {idx < config.steps.length - 1 && <div className="step-line"></div>}
+              {idx < displayConfig.steps.length - 1 && <div className="step-line"></div>}
             </React.Fragment>
           ))}
         </div>
@@ -1251,26 +1575,32 @@ function DynamicWorkflow({ config, onSubmit }) {
       <h2>{currentStep.title}</h2>
 
       <div className="step-fields">
-        {currentStep.fields.map(field => (
-          <DynamicField
-            key={field.id}
-            field={field}
-            value={formData[field.id] || ''}
-            onChange={val => handleFieldChange(field.id, val)}
-          />
-        ))}
+        {currentStep.fields.map(field => {
+          const isEmpty = !formData[field.id] || !formData[field.id].toString().trim();
+          return (
+            <DynamicField
+              key={field.id}
+              field={field}
+              value={formData[field.id] || ''}
+              onChange={val => handleFieldChange(field.id, val)}
+              invalid={attempted && isEmpty}
+            />
+          );
+        })}
       </div>
 
+      {attempted && !canGoNext && (
+        <div className="alert alert-error">{t('task.selectLabelRequired')}</div>
+      )}
       <div className="btn-row">
         {stepIndex > 0 && (
-          <button className="btn btn-secondary" onClick={() => setStepIndex(stepIndex - 1)}>
+          <button className="btn btn-secondary" onClick={() => { setStepIndex(stepIndex - 1); setAttempted(false); }}>
             {t('task.back')}
           </button>
         )}
         <button
           className="btn btn-primary"
           onClick={handleAction}
-          disabled={!canGoNext}
         >
           {isLastStep ? t('task.submit') : t('task.next')}
         </button>
@@ -1282,7 +1612,7 @@ function DynamicWorkflow({ config, onSubmit }) {
 /**
  * A generic field renderer that picks the right component based on the schema.
  */
-function DynamicField({ field, value, onChange }) {
+function DynamicField({ field, value, onChange, invalid }) {
   const { t } = useT();
 
   const renderInput = () => {
@@ -1307,11 +1637,11 @@ function DynamicField({ field, value, onChange }) {
         );
       case 'button_group':
         return (
-          <div className="choice-group">
+          <div className={`choice-group${invalid ? ' invalid' : ''}`}>
             {field.options.map(opt => (
               <button
                 key={opt}
-                className={`choice-btn ${value === opt ? 'selected' : ''}`}
+                className={`choice-btn ${value === opt ? 'selected' : ''}${invalid ? ' invalid' : ''}`}
                 onClick={() => onChange(opt)}
               >
                 {opt}

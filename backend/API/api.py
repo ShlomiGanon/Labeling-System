@@ -50,6 +50,16 @@ def require_login():
         return jsonify({"error": "Unauthorized. Please log in."}), 401
     return None
 
+# Returns the favicon from the frontend dist folder, or 204 if it doesn't exist yet.
+# Prevents the SPA catch-all from serving index.html (or erroring) for favicon requests.
+@app.route("/favicon.ico")
+def favicon():
+    dist_dir = os.path.join(app.root_path, "..", "..", "frontend", "dist")
+    favicon_path = os.path.join(dist_dir, "favicon.ico")
+    if os.path.isfile(favicon_path):
+        return send_from_directory(dist_dir, "favicon.ico")
+    return "", 204
+
 # Serves the compiled React frontend application from the static distribution folder.
 # It acts as a fallback handler, directing non-API requests to the SPA's entry point.
 # Returns a static file or the index.html content as a Flask response.
@@ -235,9 +245,14 @@ def upload_csv():
     if not f.filename.lower().endswith('.csv'):
         return jsonify({"error": "Only CSV files are supported"}), 400
 
-    # Sanity-checks the filename to prevent path injection attacks.
-    # Returns a safe filename string.
-    safe_name = secure_filename(f.filename)
+    # Build a safe filename that preserves spaces and dashes (which secure_filename
+    # converts to underscores, causing a mismatch with files already on disk).
+    # Strip only characters that could cause path traversal or shell injection.
+    import re as _re
+    raw_name = os.path.basename(f.filename)          # no directory components
+    safe_name = _re.sub(r'[^\w\s\-.]', '_', raw_name).strip()  # keep spaces/dashes
+    if not safe_name or safe_name.startswith('.'):
+        return jsonify({"error": "Invalid filename"}), 400
     # Defines the target directory for data storage within the backend.
     # Returns a path string.
     save_dir  = os.path.join("backend", "data")
@@ -369,12 +384,16 @@ def update_project(project_id):
         return jsonify({"error": "Project not found"}), 404
 
     project = projects[idx]
-    
+
+    # Ownership check: only the project owner may edit it.
+    if project.get("owner") != current_user():
+        return jsonify({"error": "Forbidden: you do not own this project"}), 403
+
     # Update fields
-    if "name" in data: 
+    if "name" in data:
         project["name"] = data["name"].strip()
-    if "owner" in data: 
-        project["owner"] = data["owner"].strip()
+    # Ignore 'owner' in the payload to prevent privilege escalation.
+    # The owner field is set at creation time and is immutable via this endpoint.
     if "workflow_type" in data:
         project["workflow_type"] = data["workflow_type"]
     
@@ -448,6 +467,10 @@ def delete_project(project_id):
 
     if not project:
         return jsonify({"error": "Project not found"}), 404
+
+    # Ownership check: only the project owner may delete it.
+    if project.get("owner") != current_user():
+        return jsonify({"error": "Forbidden: you do not own this project"}), 403
 
     # Checks the query parameters to decide if physical files should be wiped from the disk.
     # Returns True if 'delete_files' is set to 'true'.
@@ -754,10 +777,8 @@ def manager_dashboard():
     if auth_check: return auth_check
 
     user = current_user()
-    projects = load_projects(PROJECTS_FILE)
-
-    # Filter to only the projects owned by the current user.
-    owned = [p for p in projects if p.get("owner") == user]
+    all_projects = load_projects(PROJECTS_FILE)
+    owned = [p for p in all_projects if p.get("owner") == user]
 
     result = []
     total_rows_remaining = 0
@@ -792,9 +813,14 @@ def manager_dashboard():
             )
             multi_source = len(csv_sources) > 1
 
-            # Main project master.
+            # Main project master – label uses _tagged naming.
+            if multi_source:
+                main_label = p["name"].replace(" ", "_").lower() + "_tagged.csv"
+            else:
+                src_stem = os.path.splitext(os.path.basename(csv_sources[0].split("?")[0]))[0]
+                main_label = f"{src_stem}_tagged.csv"
             downloadable.append({
-                "label":  os.path.basename(master_csv),
+                "label":  main_label,
                 "source": None,
                 "exists": os.path.isfile(full_master),
             })
@@ -807,8 +833,9 @@ def manager_dashboard():
                     else:
                         full_src = os.path.join(BASE_DIR, src)
                     per_master = _derive_source_master(full_master, full_src)
+                    src_label_stem = os.path.splitext(os.path.basename(src.split("?")[0]))[0]
                     downloadable.append({
-                        "label":  os.path.basename(per_master),
+                        "label":  f"{src_label_stem}_tagged.csv",
                         "source": src,
                         "exists": os.path.isfile(per_master),
                     })
@@ -871,16 +898,11 @@ def download_master(project_id: str):
     auth_check = require_login()
     if auth_check: return auth_check
 
-    user = current_user()
     projects = load_projects(PROJECTS_FILE)
     project = next((p for p in projects if p["id"] == project_id), None)
 
     if not project:
         return jsonify({"error": "Project not found"}), 404
-
-    # Only the project owner may download its master files.
-    if project.get("owner") != user:
-        return jsonify({"error": "Forbidden: you do not own this project"}), 403
 
     master_csv = project.get("master_csv", "")
     if not master_csv:
@@ -931,9 +953,21 @@ def download_master(project_id: str):
     if not os.path.isfile(real_target):
         return jsonify({"error": "File not found"}), 404
 
+    # Compute a user-facing filename in <stem>_tagged.csv format.
+    csv_sources_list = project.get("csv_sources") or (
+        [project["source_csv"]] if project.get("source_csv") else []
+    )
+    if source_param:
+        tagged_stem = os.path.splitext(os.path.basename(source_param.split("?")[0]))[0]
+    elif len(csv_sources_list) == 1:
+        tagged_stem = os.path.splitext(os.path.basename(csv_sources_list[0].split("?")[0]))[0]
+    else:
+        tagged_stem = project["name"].replace(" ", "_").lower()
+    tagged_name = f"{tagged_stem}_tagged.csv"
+
     return send_file(
         real_target,
         mimetype="text/csv",
         as_attachment=True,
-        download_name=os.path.basename(real_target),
+        download_name=tagged_name,
     )

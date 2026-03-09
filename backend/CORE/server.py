@@ -46,6 +46,30 @@ def _derive_source_master(project_master: str, source_path: str) -> str:
 
 def get_engine(project: dict) -> LabelingEngine:
     pid = project["id"]
+
+    # If a cached engine exists but has local source errors, check whether
+    # those files have appeared on disk since the engine was first built.
+    # If so, evict the stale engine so it is rebuilt below.
+    if pid in _engines:
+        cached = _engines[pid]
+        source_errors = getattr(cached, "source_errors", {})
+        if source_errors:
+            raw_sources = project.get("csv_sources") or (
+                [project["source_csv"]] if project.get("source_csv") else []
+            )
+            recovered = any(
+                not (s.startswith("http://") or s.startswith("https://"))
+                and s in source_errors
+                and os.path.isfile(os.path.normpath(os.path.join(BASE_DIR, s)))
+                for s in raw_sources
+            )
+            if recovered:
+                logger.info(
+                    f"Previously-missing local source(s) now found for project {pid}; "
+                    "invalidating engine cache for rebuild."
+                )
+                del _engines[pid]
+
     if pid not in _engines:
         # Support both the new list field and the old single-source field.
         raw_sources = project.get("csv_sources") or (
@@ -68,8 +92,8 @@ def get_engine(project: dict) -> LabelingEngine:
                     per_master = _derive_source_master(master_path, source_path) if multi_source else None
                     engine.load_source(source_path, master_path=per_master, storage=source_storage)
                 else:
-                    # Local sources are stored as project-relative paths.
-                    full_source_path = os.path.join(BASE_DIR, source_path)
+                    # Normalize path to handle leading ./ and mixed slashes.
+                    full_source_path = os.path.normpath(os.path.join(BASE_DIR, source_path))
                     if os.path.isfile(full_source_path):
                         per_master = _derive_source_master(master_path, full_source_path) if multi_source else None
                         engine.load_source(full_source_path, master_path=per_master, storage=source_storage)

@@ -337,9 +337,10 @@ class RemoteStorage(BaseStorage):
 
             if file_id:
                 if "/spreadsheets/" in url:
-                    # Reconstructs the URL to point to the CSV export endpoint for Google Sheets.
-                    # Returns a modified URL string.
-                    url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv"
+                    # Preserve the sheet tab (gid) so the correct tab is exported.
+                    gid_match = re.search(r'[?&#]gid=(\d+)', file_path)
+                    gid_param = f"&gid={gid_match.group(1)}" if gid_match else ""
+                    url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv{gid_param}"
                 else:
                     # Reconstructs the URL to point to the direct download endpoint for uploaded files.
                     # Returns a modified URL string.

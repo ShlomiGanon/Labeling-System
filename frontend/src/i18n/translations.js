@@ -21,6 +21,9 @@ export const translations = {
       usernameLabel: 'שם משתמש',
       usernamePlaceholder: 'לדוגמה: פרופסור כהן',
       submitBtn: 'כניסה למערכת',
+      usernameRequired: 'יש להזין שם משתמש',
+      tooShort: 'שם המשתמש חייב לכלול לפחות 2 אותיות',
+      invalidChars: 'שם המשתמש יכול להכיל אותיות ורווחים בלבד (ללא מספרים או סימני פיסוק)',
     },
     projects: {
       title: 'בחר פרויקט למחקר',
@@ -34,6 +37,18 @@ export const translations = {
       badgeWorkflow: 'תהליך {type}',
       editTitle: 'ערוך פרויקט',
       deleteTitle: 'מחק פרויקט',
+      noPermissionTitle: 'אין הרשאה',
+      noPermissionEdit: 'אין לך הרשאה לערוך פרויקט זה. רק בעל הפרויקט יכול לערוך אותו.',
+      noPermissionDelete: 'אין לך הרשאה למחוק פרויקט זה. רק בעל הפרויקט יכול למחוק אותו.',
+      downloadTitle: 'הורד קובץ מתוייג',
+      downloadError: 'שגיאת הורדה: {msg}',
+      downloadNoFile: 'קובץ התיוג טרם נוצר',
+      completedPageTitle: 'פרויקטים שהושלמו',
+      completedPageSubtitle: 'פרויקטי מחקר שהתיוג שלהם הסתיים.',
+      goToCompleted: 'פרויקטים שהושלמו →',
+      backToActive: '← חזרה לפרויקטים פעילים',
+      noActiveProjects: 'אין פרויקטים פעילים כרגע.',
+      noCompletedProjects: 'אין פרויקטים שהסתיימו עדיין.',
     },
     delete: {
       title: 'מחיקת פרויקט',
@@ -83,6 +98,8 @@ export const translations = {
       cancel: 'ביטול',
       save: 'שמור שינויים',
       create: 'יצירת פרויקט',
+      projectNameRequired: 'יש להזין שם פרויקט',
+      csvRequired: 'יש לבחור לפחות קובץ CSV אחד',
       sourceNamePrompt: 'שם הקובץ לתצוגה:',
       sourceAdded: 'קובץ הוסף בהצלחה:',
       removeFile: 'הסר קובץ',
@@ -118,6 +135,7 @@ export const translations = {
       submit: 'סיום ושליחה',
       selectOption: '-- בחר אפשרות --',
       errorWorkflow: 'שגיאה בטעינת הגדרות התהליך',
+      selectLabelRequired: 'יש לבחור תגית לפני השליחה',
     },
     dialog: {
       successTitle: 'התיוג נשלח בהצלחה',
@@ -148,10 +166,10 @@ export const translations = {
     manager: {
       myDashboard: 'לוח הבקרה שלי',
       dashboardTitle: 'לוח בקרה מנהל',
-      dashboardSubtitle: 'סקירת הפרויקטים שבבעלותך והורדת קבצי CSV מאוחדים.',
+      dashboardSubtitle: 'סקירת פרויקטי התיוג והורדת קבצי CSV מתוייגים.',
       backToProjects: '← חזרה לפרויקטים',
-      noProjects: 'אין פרויקטים בבעלותך.',
-      downloadFiles: 'הורדת קבצי מאסטר:',
+      noProjects: 'אין פרויקטים זמינים.',
+      downloadFiles: 'הורדת קבצים מתוייגים:',
       noMasterYet: 'טרם נוצר',
       loadFailed: 'טעינת לוח הבקרה נכשלה',
       downloadError: 'הורדה נכשלה: {msg}',
@@ -165,6 +183,36 @@ export const translations = {
         active: 'פעילים',
         completed: 'הושלמו',
         rowsRemaining: 'שורות שנותרו',
+      },
+    },
+    schemas: {
+      A: {
+        steps: [
+          { title: 'בדיקת קשר תמונה-טקסט', fields: [
+            { label: 'מה סוג הקשר בין התמונה לטקסט?', placeholder: '' },
+          ]},
+        ],
+      },
+      B: {
+        steps: [
+          { title: 'צעד 1: זיהוי ישות', fields: [
+            { label: 'שם הישות:', placeholder: 'הכנס שם ישות...' },
+            { label: 'סוג הישות:', placeholder: '' },
+          ]},
+          { title: 'צעד 2: נושא', fields: [
+            { label: 'מה הנושא העיקרי?', placeholder: 'כתוב את הנושא...' },
+          ]},
+          { title: 'צעד 3: סנטימנט', fields: [
+            { label: 'מה הסנטימנט?', placeholder: '' },
+          ]},
+        ],
+      },
+      C: {
+        steps: [
+          { title: 'תיאור תמונה (Golden Caption)', fields: [
+            { label: 'תאר את התמונה בצורה מפורטת:', placeholder: 'הכנס תיאור כאן...' },
+          ]},
+        ],
       },
     },
   },
@@ -191,6 +239,9 @@ export const translations = {
       usernameLabel: 'Username',
       usernamePlaceholder: 'e.g. Professor Cohen',
       submitBtn: 'Sign In',
+      usernameRequired: 'Please enter a username',
+      tooShort: 'Username must contain at least 2 letters',
+      invalidChars: 'Username may only contain letters and spaces (no numbers or punctuation)',
     },
     projects: {
       title: 'Select a Research Project',
@@ -204,6 +255,18 @@ export const translations = {
       badgeWorkflow: 'Workflow {type}',
       editTitle: 'Edit project',
       deleteTitle: 'Delete project',
+      noPermissionTitle: 'Access Denied',
+      noPermissionEdit: 'You do not have permission to edit this project. Only the project owner can edit it.',
+      noPermissionDelete: 'You do not have permission to delete this project. Only the project owner can delete it.',
+      downloadTitle: 'Download labeled file',
+      downloadError: 'Download error: {msg}',
+      downloadNoFile: 'Labeled file not yet created',
+      completedPageTitle: 'Completed Projects',
+      completedPageSubtitle: 'Research projects whose labeling has been finished.',
+      goToCompleted: 'Completed Projects →',
+      backToActive: '← Back to Active Projects',
+      noActiveProjects: 'No active projects at the moment.',
+      noCompletedProjects: 'No completed projects yet.',
     },
     delete: {
       title: 'Delete Project',
@@ -253,6 +316,8 @@ export const translations = {
       cancel: 'Cancel',
       save: 'Save Changes',
       create: 'Create Project',
+      projectNameRequired: 'Project name is required',
+      csvRequired: 'Please add at least one CSV source',
       sourceNamePrompt: 'Display name for file:',
       sourceAdded: 'File added successfully:',
       removeFile: 'Remove file',
@@ -288,6 +353,7 @@ export const translations = {
       submit: 'Finish & Submit',
       selectOption: '-- Select an option --',
       errorWorkflow: 'Error loading workflow settings',
+      selectLabelRequired: 'Please choose a label before submitting.',
     },
     dialog: {
       successTitle: 'Label Submitted Successfully',
@@ -318,10 +384,10 @@ export const translations = {
     manager: {
       myDashboard: 'My Dashboard',
       dashboardTitle: 'Manager Dashboard',
-      dashboardSubtitle: 'Overview of your projects and download master CSV files.',
+      dashboardSubtitle: 'Overview of labeling projects and download tagged CSV files.',
       backToProjects: '← Back to Projects',
-      noProjects: 'You have no projects.',
-      downloadFiles: 'Download master files:',
+      noProjects: 'No projects available.',
+      downloadFiles: 'Download labeled files:',
       noMasterYet: 'Not yet created',
       loadFailed: 'Failed to load dashboard',
       downloadError: 'Download failed: {msg}',
@@ -335,6 +401,36 @@ export const translations = {
         active: 'Active',
         completed: 'Completed',
         rowsRemaining: 'Rows Remaining',
+      },
+    },
+    schemas: {
+      A: {
+        steps: [
+          { title: 'Image-Text Relationship Check', fields: [
+            { label: 'What is the relationship type between the image and text?', placeholder: '' },
+          ]},
+        ],
+      },
+      B: {
+        steps: [
+          { title: 'Step 1: Entity Identification', fields: [
+            { label: 'Entity Name:', placeholder: 'Enter entity name...' },
+            { label: 'Entity Type:', placeholder: '' },
+          ]},
+          { title: 'Step 2: Topic', fields: [
+            { label: 'What is the main topic?', placeholder: 'Write the topic...' },
+          ]},
+          { title: 'Step 3: Sentiment', fields: [
+            { label: 'What is the sentiment?', placeholder: '' },
+          ]},
+        ],
+      },
+      C: {
+        steps: [
+          { title: 'Image Description (Golden Caption)', fields: [
+            { label: 'Describe the image in detail:', placeholder: 'Enter description here...' },
+          ]},
+        ],
       },
     },
   },

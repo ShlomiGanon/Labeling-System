@@ -1,31 +1,24 @@
 {
   "projects": [
     {
-      "id": "e16df585-94f7-4b29-a47d-90505f216437",
-      "name": "דידי",
-      "owner": "אופק",
+      "id": "81de7cd8-ea58-4529-b2a5-edfd1a940cf6",
+      "name": "ofek test",
+      "owner": "ofek",
       "workflow_type": "A",
       "csv_sources": [
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view",
-        "backend/data/AMZN_X_full.csv"
+        "backend/data/master___view.csv"
       ],
-      "master_csv": "backend/data/master_דידי.csv",
-      "source_labels": {
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - קובץ אופק"
-      }
+      "master_csv": "backend/data/master_ofek_test.csv"
     },
     {
-      "id": "c9aff378-fec2-4501-8003-2a39bc48fbd0",
-      "name": "דוגמא של אופק",
+      "id": "4bb41300-f4f7-4102-9459-2b8ff048daf8",
+      "name": "בידקה בדיקה",
       "owner": "אופק",
       "workflow_type": "A",
       "csv_sources": [
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view"
+        "backend/data/posts_with_topics - posts_with_topics.csv"
       ],
-      "master_csv": "backend/data/master_דוגמא_של_אופק.csv",
-      "source_labels": {
-        "https://drive.google.com/file/d/1OXuwkMpO9TKfzAYUE-xZiup0lIBUFuds/view": "Google Drive - ניסיון אופק"
-      }
+      "master_csv": "backend/data/master_בידקה_בדיקה.csv"
     }
   ]
 }
