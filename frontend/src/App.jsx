@@ -305,15 +305,13 @@ function Topbar({ user, onLogout, onDashboard }) {
         <div className="user-badge">
           <span>{t('topbar.connectedAs')} <strong>{user}</strong></span>
           <button
-            className="btn btn-secondary"
-            style={{ padding: '7px 16px', fontSize: '0.85rem' }}
+            className="btn btn-secondary topbar-btn"
             onClick={onDashboard}
           >
             {t('manager.myDashboard')}
           </button>
           <button
-            className="btn btn-secondary"
-            style={{ padding: '7px 16px', fontSize: '0.85rem' }}
+            className="btn btn-secondary topbar-btn"
             onClick={onLogout}
           >
             {t('topbar.logout')}
