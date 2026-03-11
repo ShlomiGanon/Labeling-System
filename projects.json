@@ -19,6 +19,16 @@
         "backend/data/posts_with_topics - posts_with_topics.csv"
       ],
       "master_csv": "backend/data/master_בידקה_בדיקה.csv"
+    },
+    {
+      "id": "16fc462f-587b-4588-86ff-d591705865ce",
+      "name": "נהנה",
+      "owner": "בר משה",
+      "workflow_type": "A",
+      "csv_sources": [
+        "backend/data/posts_with_topics - posts_with_topics.csv"
+      ],
+      "master_csv": "backend/data/master_נהנה.csv"
     }
   ]
 }
