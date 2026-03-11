@@ -1,19 +1,48 @@
 /**
  * client.js
  * ---------
- * This file handles all the communication between the React frontend 
+ * This file handles all the communication between the React frontend
  * and the Flask backend.
  */
+import { auth } from '../firebase.js';
 
-/** 
+/**
+ * Returns the Firebase ID token for the currently signed-in Firebase user,
+ * or null if Firebase Auth is not yet set up / no user is signed in.
+ * Safe to call at any time — never throws.
+ */
+async function getFirebaseToken() {
+  try {
+    const user = auth.currentUser;
+    if (!user) return null;
+    return await user.getIdToken();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A helper function to send requests to the backend.
  * It handles errors and converts the data to JSON automatically.
+ *
+ * Auth strategy (both run in parallel during migration):
+ *  - credentials: 'include'  → Flask session cookie (current system, still works)
+ *  - Authorization: Bearer   → Firebase ID token (added when a Firebase user is
+ *                              signed in; ignored by the backend until Phase 3)
  */
 async function request(method, url, body = null) {
+  const token = await getFirebaseToken();
+
   const options = {
     method,
     credentials: 'include', // Important: this shares the login session cookies
     headers: { 'Content-Type': 'application/json' },
+  }
+
+  // Attach Firebase token when available. The Flask backend ignores this header
+  // for now; it will be wired up when the backend migrates to Firebase Auth.
+  if (token) {
+    options.headers['Authorization'] = `Bearer ${token}`;
   }
 
   if (body !== null) {
@@ -107,7 +136,9 @@ export const getMasterDownloadUrl = (projectId, source = null) => {
 export const downloadMasterFile = async (projectId, source = null) => {
   const url = getMasterDownloadUrl(projectId, source)
   try {
-    const res = await fetch(url, { credentials: 'include' })
+    const token = await getFirebaseToken();
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(url, { credentials: 'include', headers })
     if (!res.ok) {
       try {
         const data = await res.json()
