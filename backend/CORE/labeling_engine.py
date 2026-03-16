@@ -114,6 +114,9 @@ class LabelingEngine:
                 raise ValueError(f"ID Mismatch: User assigned {active_row.row_id}, but submitted {label.row_id}")
 
             label_dict = label.to_dict()
+            # Enrich with source row fields for the exported CSV.
+            label_dict["image_url"] = active_row.image_path or ""
+            label_dict["text_content"] = active_row.text_content or ""
             # Save to the output file that belongs to this source.
             target_master = self._source_to_master.get(active_row.source_csv) or self._master_file_path
             target_storage = self._source_storages.get(active_row.source_csv, self._storage)

@@ -29,6 +29,47 @@
         "backend/data/posts_with_topics - posts_with_topics.csv"
       ],
       "master_csv": "backend/data/master_נהנה.csv"
+    },
+    {
+      "id": "a2bf8b6d-f6e5-4420-9162-35cc33d86bcc",
+      "name": "=בדיקה בשביל גונסון",
+      "owner": "אופק",
+      "workflow_type": "CUSTOM",
+      "csv_sources": [
+        "backend/data/posts_with_topics - posts_with_topics.csv"
+      ],
+      "master_csv": "backend/data/master_=בדיקה_בשביל_גונסון.csv",
+      "custom_schema": {
+        "steps": [
+          {
+            "fields": [
+              {
+                "component": "button_group",
+                "id": "field_1773576244912",
+                "label": "",
+                "options": [
+                  "חתיך",
+                  "מכוער",
+                  "יפה"
+                ],
+                "placeholder": ""
+              }
+            ],
+            "title": "איזה הכי מתאים "
+          }
+        ],
+        "content_type": "both"
+      }
+    },
+    {
+      "id": "18948594-50a6-4631-87d3-fdc31c1daa9c",
+      "name": "ברמוחחחחח",
+      "owner": "אופק",
+      "workflow_type": "A",
+      "csv_sources": [
+        "backend/data/posts_with_topics - posts_with_topics.csv"
+      ],
+      "master_csv": "backend/data/master_ברמוחחחחח.csv"
     }
   ]
 }
